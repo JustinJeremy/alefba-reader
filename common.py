@@ -21,6 +21,10 @@ NAMES = ["alef", "be", "pe", "te", "se", "jim", "che", "he (jimi)", "khe", "dal"
          "gaf", "lam", "mim", "nun", "vav", "he (do-cheshm)", "ye"]
 assert len(LETTERS) == len(LOOKUP) == len(LOOKUP_ASCII) == len(NAMES) == 32
 
+# The model has one extra answer: "this is not a Persian letter" (Latin letters, digits, objects, shapes)
+NOT_A_LETTER = 32
+NUM_CLASSES = 33
+
 SIZE = 64          # input side in pixels (dots stay 3-4 px wide instead of 1-2)
 
 
@@ -317,7 +321,7 @@ def preprocess(img_bgr: np.ndarray, strict: bool = False, captions: bool = False
 
 
 class PersianCNN(nn.Module):
-    def __init__(self, n=32):
+    def __init__(self, n=NUM_CLASSES):
         super().__init__()
         def block(i, o):
             return nn.Sequential(nn.Conv2d(i, o, 3, padding=1), nn.BatchNorm2d(o),

@@ -2,7 +2,8 @@
 
 Setup:        pip install -r requirements.txt
 Data:         1) python convert_dataset.py <folder with Random1..Random10>   (see below), or Convert IFHCDB letter images to PNGs in data/handwritten/<0..31>/ (class order = LETTERS in common.py; skip digits)
-              2) python prepare_data.py   renders the letters in the fonts in fonts/ plus the Arabic-script
+              2) python prepare_data.py   renders the letters (and 'not a letter' examples: Latin letters, digits,
+                 shapes -> data/negative/32/) in the fonts in fonts/ plus the Arabic-script
                  fonts that come with Windows (read in place, not copied), as photo-like printed samples
 Train:        python train.py            (creates persian_cnn.pt, letter_profile.npz, results/metrics.txt, results/confusion_matrix.csv)
                  The Calibri font family is held out of training to measure accuracy on an unseen font.

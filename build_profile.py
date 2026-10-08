@@ -25,6 +25,7 @@ def features(model, X, batch=512):
 
 
 def build(model, X, y):
+    X, y = X[y < 32], y[y < 32]                       # the 32 letters only, not the "not a letter" images
     F = features(model, X)
     centres = np.stack([F[y == c].mean(0) for c in range(32)])
     centres /= np.linalg.norm(centres, axis=1, keepdims=True)

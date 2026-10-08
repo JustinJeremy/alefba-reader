@@ -54,8 +54,8 @@ NO_LETTER_SET = os.path.join(ROOT, "no_letter_set")
 
 
 def test_phone_photo_of_a_desk_shadow_is_refused():
-    # was read as dal (76%): the shadow edge of a desk runs off the photo
-    with pytest.raises(ValueError, match="runs off the edge"):
+    # was read as dal (76%): now refused (by the model, or because the shape runs off the photo edge)
+    with pytest.raises(ValueError, match="No (complete )?Persian letter found"):
         predict_file(os.path.join(NO_LETTER_SET, "phone_desk_shadow.jpg"))
 
 
@@ -88,3 +88,26 @@ def test_same_photo_can_be_saved_twice_in_different_folders(tmp_path, monkeypatc
         assert r.status_code == 200
     assert sorted(os.listdir(tmp_path / "JJ")) == ["15_shin_1.jpg", "15_shin_2.jpg"]
     assert os.listdir(tmp_path / "Ethan") == ["15_shin_1.jpg"]
+
+
+KNOWN_MISS = pytest.mark.xfail(strict=True, reason="known miss: still read as a letter (61-67%); needs more "
+                               "varied 'not a letter' training images. strict: this test fails once it is fixed")
+
+
+@pytest.mark.parametrize("name", ["screenshot_game_tiles.jpg", "screenshot_profile_page.jpg",
+                                  pytest.param("screenshot_app_icon.jpg", marks=KNOWN_MISS),
+                                  pytest.param("screenshot_number_77776.jpg", marks=KNOWN_MISS)])
+def test_screenshots_of_objects_are_refused(name):
+    # these used to be read as che / gaf with 85-98% confidence
+    with pytest.raises(ValueError, match="No (complete )?Persian letter found"):
+        predict_file(os.path.join(NO_LETTER_SET, name))
+
+
+def test_loop_letters_are_never_refused():
+    # the 'not a letter' examples deliberately contain no loops, so he (a loop) must still be read
+    import glob
+    files = [f for d in ("rehearsal_set", "hard_set") for f in glob.glob(os.path.join(ROOT, d, "*", "30_he2.jpg"))]
+    files += glob.glob(os.path.join(ROOT, "rehearsal_set", "*", "07_he.jpg"))
+    for f in files:
+        (pred, conf), *_ = predict_file(f)
+        assert pred == int(os.path.basename(f)[:2]), f

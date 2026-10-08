@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import marks
 from common import (PersianCNN, preprocess, caption_suspect, load_image, _binary, _prepare_bw, SIZE,
-                    LETTERS, LOOKUP, LOOKUP_ASCII, NAMES)
+                    LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, NOT_A_LETTER)
 
 # next to this file, so the app works no matter which folder it is started from
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "persian_cnn.pt")
@@ -154,8 +154,10 @@ def looks_persian(img, limit=25):
     m = load_model()
     with torch.no_grad():
         f = torch.nn.functional.normalize(m.head[:3](m.features(torch.tensor(np.array(views)).unsqueeze(1))), dim=1)
-        cls = m.head[3:](f).argmax(1).numpy()
-    dist = 1 - (f.numpy() * centres[cls]).sum(1)
+        out = m.head[3:](f)
+        cls = out[:, :NOT_A_LETTER].argmax(1).numpy()          # nearest letter, for the distance
+        refused = (out.argmax(1) == NOT_A_LETTER).numpy()      # the model's own "not a letter" answer
+    dist = np.where(refused, 1.0, 1 - (f.numpy() * centres[cls]).sum(1))
     return float((dist < 0.15).mean()) >= MIN_PERSIAN
 
 
@@ -177,6 +179,9 @@ def _read_one(img, topk):
         except ValueError:
             pass
     view, box, feats = view
+    if p[NOT_A_LETTER] >= 0.5:                      # the model itself says: this is not a Persian letter
+        raise ValueError(NO_LETTER)
+    p = p[:NOT_A_LETTER]                            # only the 32 letters are ever shown as answers
     if letter_distance(int(p.argmax()), feats) > MAX_DISTANCE:
         raise ValueError(NO_LETTER)
     conf, idx = p.topk(topk)
