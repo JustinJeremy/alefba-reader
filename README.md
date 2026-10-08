@@ -8,7 +8,8 @@ Train:        python train.py            (creates persian_cnn.pt, letter_profile
                  The Calibri font family is held out of training to measure accuracy on an unseen font.
 CLI:          python predict.py img1.jpg img2.jpg img3.jpg   [--ascii = no diacritics]
 Frontend:     python app.py   then open http://127.0.0.1:5000   (page: templates/index.html, static/style.css, static/app.js)
-              python app.py --host 0.0.0.0   to open it from a phone on the same Wi-Fi (http://<laptop-ip>:5000)
+              python app.py --host 0.0.0.0   to open it from a phone on the same Wi-Fi (it prints the address);
+              'Save photo' on the phone saves into the chosen real_photos/ folder on the laptop
 Output:       romanisation follows the instructor alphabet chart (slide 3), e.g. q for qaf, w for vav
 Tests:        python -m pytest              (unit + app + CLI tests, about 30 s)
 Score a set:  python score_testset.py rehearsal_set     (or hard_set; test-only images, never train on them)

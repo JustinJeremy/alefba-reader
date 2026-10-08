@@ -196,7 +196,8 @@ function captureFrame() {
 $("camBtn").onclick = async () => {
   if (stream) { captureFrame(); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    $("err").textContent = "Live camera needs https or localhost. Using the file picker instead.";
+    // a phone opening the laptop's address: the browser allows no live preview there,
+    // so open the phone's own camera app instead (the photo comes straight back here)
     $("cam").click();
     return;
   }
@@ -236,7 +237,7 @@ function showAnswer(d) {
   const span = document.createElement("span");
   span.textContent = t.latin;
   $("latin").replaceChildren(span);
-  $("latin").classList.toggle("symbol", !/[a-z]/i.test(t.latin));   // eyn = ʿ, alef = -
+  $("latin").classList.toggle("symbol", t.latin === "-" || t.latin === "ʿ");   // alef = -, eyn = ʿ
   $("latin").classList.toggle("high", t.latin === "ʿ");
   $("name").textContent = t.name + (t.ascii !== t.latin ? " · plain: " + t.ascii : "");
 
@@ -296,6 +297,7 @@ $("saveBtn").onclick = async () => {
     const fd = new FormData();
     fd.append("image", current);
     fd.append("class_id", $("truth").value);
+    fd.append("folder", $("folder").value);
     const r = await fetch("/save", { method: "POST", body: fd });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || "Could not save.");

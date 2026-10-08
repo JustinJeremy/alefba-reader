@@ -77,12 +77,6 @@ body {
   letter-spacing: .04em;
 }
 
-.banner .intro {
-  max-width: 620px;
-  margin: 14px auto 0;
-  font-size: .95rem;
-  color: #f3e3cf;
-}
 
 
 /* ---------- page column ---------- */
@@ -116,6 +110,12 @@ main {
 
 
 /* ---------- photo area ---------- */
+
+.lead {
+  margin: -4px 0 0;
+  font-size: .93rem;
+  color: var(--muted);
+}
 
 #drop {
   min-height: 280px;
@@ -263,12 +263,21 @@ input[type=file] { display: none; }
 #err:empty { display: none; }
 
 
-/* ---------- result (centred, top to bottom) ---------- */
+/* ---------- result: letter tile on the left, details on the right ---------- */
 
 #result {
-  justify-items: center;
-  text-align: center;
-  gap: 10px;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 24px;
+  row-gap: 14px;
+}
+
+#result h2 { grid-column: 1 / -1; }
+
+.details {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
 }
 
 .letter-tile {
@@ -314,14 +323,16 @@ input[type=file] { display: none; }
 .conf {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 10px;
   width: 100%;
   font-size: .92rem;
 }
 
+#conf { white-space: nowrap; }
+
 .bar {
   flex: 0 1 220px;
+  min-width: 80px;
   height: 8px;
   border-radius: 99px;
   background: var(--line);
@@ -342,7 +353,6 @@ input[type=file] { display: none; }
 #alts {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 6px;
   font-size: .88rem;
 }
@@ -356,6 +366,7 @@ input[type=file] { display: none; }
 }
 
 #how {
+  margin-top: 4px;
   padding: 3px 12px;
   border-radius: 99px;
   background: var(--maroon);
@@ -364,23 +375,27 @@ input[type=file] { display: none; }
 }
 
 
-/* ---------- how the app read the photo (one step under the other) ---------- */
+/* ---------- how the app read the photo: the two steps side by side ---------- */
 
 .steps {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 20px;
 }
 
 .steps figure {
   margin: 0;
   display: grid;
-  justify-items: center;
+  align-content: start;
+  justify-items: start;
   gap: 8px;
-  text-align: center;
+  padding: 14px;
+  border-radius: 10px;
+  background: #fffaf1;
+  border: 1px solid var(--line);
 }
 
 .steps figcaption {
-  max-width: 460px;
   font-size: .9rem;
   color: var(--muted);
 }
@@ -392,7 +407,7 @@ input[type=file] { display: none; }
 
 #found {
   max-width: 100%;
-  max-height: 260px;
+  max-height: 220px;
   border-radius: 8px;
   border: 1px solid var(--line);
 }
@@ -414,14 +429,26 @@ input[type=file] { display: none; }
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
-  width: 100%;
+  max-width: 100%;
+}
+
+#truth { width: 100%; }
+
+.save-row {                     /* [Save photo]  to folder  [real_photos/...] */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: .92rem;
 }
 
 #saved {
   color: var(--good);
   font-size: .92rem;
-  text-align: center;
 }
+
+#saved:empty { display: none; }
 
 
 /* ---------- small screens ---------- */
@@ -429,4 +456,7 @@ input[type=file] { display: none; }
 @media (max-width: 520px) {
   .banner h1 { font-size: 1.5rem; }
   .card { padding: 16px; }
+  #result { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .details { justify-items: center; }
+  #alts { justify-content: center; }
 }

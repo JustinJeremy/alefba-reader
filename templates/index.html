@@ -17,9 +17,6 @@
     <span lang="fa">الفبا</span>
     <small>alefbâ &middot; &ldquo;alphabet&rdquo; in Persian</small>
   </p>
-  <p class="intro">Upload or photograph one Persian letter to get its English spelling. A whole
-     alphabet sheet works too if one letter is circled, highlighted or pointed at with an arrow,
-     or if you drag a box around it.</p>
 </header>
 
 <main>
@@ -27,6 +24,9 @@
   <!-- 1. the photo -->
   <section class="card" id="photo">
     <h2>Your photo</h2>
+    <p class="lead">Upload or photograph one Persian letter to get its English spelling. A whole
+       alphabet sheet works too if one letter is circled, highlighted or pointed at with an arrow,
+       or if you drag a box around it.</p>
     <div id="drop" tabindex="0" role="button" aria-label="Choose an image">
       <span id="hint">
         <span class="big-hint" aria-hidden="true">&#8681;</span>
@@ -57,14 +57,16 @@
   <section class="card" id="result" aria-live="polite" hidden>
     <h2>Answer</h2>
     <div class="letter-tile" id="letter" lang="fa"></div>
-    <div id="latin"></div>
-    <div id="name"></div>
-    <div class="conf">
-      <div class="bar" id="confbar"><span></span></div>
-      <span id="conf"></span>
+    <div class="details">
+      <div id="latin"></div>
+      <div id="name"></div>
+      <div class="conf">
+        <div class="bar" id="confbar"><span></span></div>
+        <span id="conf"></span>
+      </div>
+      <div id="alts"></div>
+      <div id="how"></div>
     </div>
-    <div id="alts"></div>
-    <div id="how"></div>
   </section>
 
   <!-- 3. how the photo was read -->
@@ -99,7 +101,15 @@
       <option value="{{ l.id }}">{{ l.letter }}  {{ l.latin }}  ({{ l.name }})</option>
       {% endfor %}
     </select>
-    <button id="saveBtn" type="button">Save to real_photos/random_test_photos</button>
+    <div class="save-row">
+      <button id="saveBtn" type="button">Save photo</button>
+      <label for="folder">to folder</label>
+      <select id="folder">
+        {% for f in folders %}
+        <option value="{{ f }}">real_photos/{{ f }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <div id="saved" role="status"></div>
   </section>
 

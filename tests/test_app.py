@@ -66,12 +66,13 @@ def test_predict_includes_what_the_model_saw(client):
 
 def test_home_page_lists_all_32_letters_for_saving(client):
     html = client.get("/").data.decode("utf-8")
-    assert html.count("<option value=") == 32 and "Save as test photo" in html
+    import re
+    assert len(re.findall(r'<option value="\d+"', html)) == 32 and "Save as test photo" in html
 
 
 def test_save_writes_labelled_photo(client, tmp_path, monkeypatch):
     import app as app_module
-    monkeypatch.setattr(app_module, "SAVE_DIR", str(tmp_path))
+    monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))
     saved = []
     for _ in range(2):                              # second photo of the same letter gets number 2
         r = client.post("/save", data={"image": (io.BytesIO(chart_bytes()), "x.jpg"), "class_id": "1"},
@@ -79,8 +80,40 @@ def test_save_writes_labelled_photo(client, tmp_path, monkeypatch):
         assert r.status_code == 200
         saved.append(r.get_json()["saved"])
     assert saved == ["01_be_1.jpg", "01_be_2.jpg"]
-    assert sorted(os.listdir(tmp_path)) == saved
-    assert cv2.imread(str(tmp_path / saved[0])) is not None
+    assert sorted(os.listdir(tmp_path / "random_test_photos")) == saved      # the default folder
+    assert cv2.imread(str(tmp_path / "random_test_photos" / saved[0])) is not None
+
+
+def test_save_into_a_chosen_folder(client, tmp_path, monkeypatch):
+    import app as app_module
+    monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))
+    r = client.post("/save", data={"image": (io.BytesIO(chart_bytes()), "x.jpg"), "class_id": "1", "folder": "Kaye"},
+                    content_type="multipart/form-data")
+    assert r.status_code == 200 and r.get_json()["folder"] == "real_photos/Kaye"
+    assert os.listdir(tmp_path / "Kaye") == ["01_be_1.jpg"]
+
+
+@pytest.mark.parametrize("folder", ["../outside", "..", "C:/Windows", "nope"])
+def test_save_refuses_unknown_folders(client, tmp_path, monkeypatch, folder):
+    import app as app_module
+    monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path / "real_photos"))
+    r = client.post("/save", data={"image": (io.BytesIO(chart_bytes()), "x.jpg"), "class_id": "1", "folder": folder},
+                    content_type="multipart/form-data")
+    assert r.status_code == 400 and "Unknown folder" in r.get_json()["error"]
+    assert not os.path.exists(tmp_path / "outside") and not os.path.exists(tmp_path / "real_photos")
+
+
+def test_folder_list_has_team_folders_then_others(tmp_path, monkeypatch):
+    import app as app_module
+    monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))
+    (tmp_path / "Mark").mkdir(); (tmp_path / "phone_tests").mkdir(); (tmp_path / "notes.txt").write_text("x")
+    assert app_module.save_folders() == ["random_test_photos", "JJ", "Ethan", "Mark", "Kaye", "phone_tests"]
+
+
+def test_home_page_offers_the_folders(client):
+    html = client.get("/").data.decode("utf-8")
+    for f in ("random_test_photos", "JJ", "Ethan", "Mark", "Kaye"):
+        assert f'<option value="{f}"' in html
 
 
 def test_numbering_continues_after_highest_and_is_per_letter(tmp_path):
@@ -95,18 +128,18 @@ def test_numbering_continues_after_highest_and_is_per_letter(tmp_path):
 @pytest.mark.parametrize("cls", ["", "abc", "-1", "32"])
 def test_save_rejects_bad_letter(client, tmp_path, monkeypatch, cls):
     import app as app_module
-    monkeypatch.setattr(app_module, "SAVE_DIR", str(tmp_path))
+    monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))
     r = client.post("/save", data={"image": (io.BytesIO(chart_bytes()), "x.jpg"), "class_id": cls},
                     content_type="multipart/form-data")
-    assert r.status_code == 400 and os.listdir(tmp_path) == []
+    assert r.status_code == 400 and not any(os.scandir(tmp_path))
 
 
 def test_save_rejects_non_image(client, tmp_path, monkeypatch):
     import app as app_module
-    monkeypatch.setattr(app_module, "SAVE_DIR", str(tmp_path))
+    monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))
     r = client.post("/save", data={"image": (io.BytesIO(b"nope"), "x.jpg"), "class_id": "3"},
                     content_type="multipart/form-data")
-    assert r.status_code == 400 and os.listdir(tmp_path) == []
+    assert r.status_code == 400 and not any(os.scandir(tmp_path))
 
 
 def test_file_labels_match_readme_names():

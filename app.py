@@ -1,14 +1,16 @@
 """Frontend server:  python app.py  ->  http://127.0.0.1:5000
 To open it from a phone on the same Wi-Fi:  python app.py --host 0.0.0.0  ->  http://<laptop-ip>:5000"""
-import argparse, base64, os, re
+import argparse, base64, os, re, socket
 import cv2
 import numpy as np
 from flask import Flask, jsonify, render_template, request
 from common import LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, load_image
 from predict import predict_with_view, load_model
 
-# "Save as test photo" puts photos here, named <class>_<name>_<n>.jpg (TEST ONLY, never train on them)
-SAVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "real_photos", "random_test_photos")
+# "Save as test photo" puts photos in a folder inside real_photos/, named <class>_<name>_<n>.jpg
+# (TEST ONLY, never train on them). Any folder made inside real_photos/ also shows up in the list.
+PHOTOS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "real_photos")
+DEFAULT_FOLDERS = ["random_test_photos", "JJ", "Ethan", "Mark", "Kaye"]
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
@@ -26,6 +28,13 @@ def next_free_name(folder, cls):
     pattern = re.compile(re.escape(file_label(cls)) + r"_(\d+)\.jpg$", re.IGNORECASE)
     taken = [int(m.group(1)) for f in os.listdir(folder) if (m := pattern.match(f))]
     return f"{file_label(cls)}_{max(taken, default=0) + 1}.jpg"
+
+
+def save_folders():
+    """Folders the app may save into: the team's folders first, then any others in real_photos/."""
+    found = sorted(d for d in os.listdir(PHOTOS_DIR) if os.path.isdir(os.path.join(PHOTOS_DIR, d))
+                   and not d.startswith((".", "_"))) if os.path.isdir(PHOTOS_DIR) else []
+    return DEFAULT_FOLDERS + [d for d in found if d not in DEFAULT_FOLDERS]
 
 
 def _data_url(img, ext=".png"):
@@ -57,7 +66,7 @@ def _cleaned(view, side=192):
 @app.get("/")
 def home():
     letters = [{"id": i, "letter": LETTERS[i], "latin": LOOKUP[i], "name": NAMES[i]} for i in range(32)]
-    return render_template("index.html", letters=letters)
+    return render_template("index.html", letters=letters, folders=save_folders())
 
 
 @app.post("/predict")
@@ -99,16 +108,30 @@ def save():
         cls = -1
     if not f or not 0 <= cls < 32:
         return jsonify(error="Need an image and a letter (class_id 0-31)."), 400
+    folder = request.form.get("folder", DEFAULT_FOLDERS[0])
+    if folder not in save_folders():                           # only listed folders: no writing elsewhere
+        return jsonify(error="Unknown folder. Choose one from the list."), 400
     img = load_image(f.read())
     if img is None:
         return jsonify(error="That file is not a readable image."), 400
-    os.makedirs(SAVE_DIR, exist_ok=True)
-    name = next_free_name(SAVE_DIR, cls)
+    target = os.path.join(PHOTOS_DIR, folder)
+    os.makedirs(target, exist_ok=True)
+    name = next_free_name(target, cls)
     if img.ndim == 3 and img.shape[2] == 4:                    # transparent PNG: put it on white paper
         a = img[:, :, 3:4] / 255.0
         img = (img[:, :, :3] * a + 255 * (1 - a)).astype(np.uint8)
-    cv2.imwrite(os.path.join(SAVE_DIR, name), img, [cv2.IMWRITE_JPEG_QUALITY, 95])   # phone rotation already applied
-    return jsonify(saved=name, folder="real_photos/random_test_photos")
+    cv2.imwrite(os.path.join(target, name), img, [cv2.IMWRITE_JPEG_QUALITY, 95])   # phone rotation already applied
+    return jsonify(saved=name, folder=f"real_photos/{folder}")
+
+
+def laptop_address():
+    """This computer's address on the Wi-Fi, for opening the app from a phone (no data is sent)."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+    except OSError:
+        return None
 
 
 if __name__ == "__main__":
@@ -116,4 +139,6 @@ if __name__ == "__main__":
     ap.add_argument("--host", default="127.0.0.1", help="0.0.0.0 = reachable from other devices on the network")
     ap.add_argument("--port", type=int, default=5000)
     a = ap.parse_args()
+    if a.host == "0.0.0.0" and laptop_address():
+        print(f"\n  On your phone (same Wi-Fi), open:  http://{laptop_address()}:{a.port}\n")
     app.run(host=a.host, port=a.port, debug=False)
