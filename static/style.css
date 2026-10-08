@@ -1,0 +1,497 @@
+/* Persian letter reader - page style.
+   "Streamer U" palette: maroon banner with gold title, cream page, white cards with a gold edge.
+   Everything sits in one column and reads from top to bottom. */
+
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("fonts/Vazirmatn-Bold.ttf") format("truetype");
+  font-weight: 700;
+}
+
+:root {
+  --maroon: #7b1e2b;
+  --maroon-dark: #561420;
+  --gold: #e8b23a;
+  --gold-soft: #fbf1d6;
+  --cream: #f6eee2;
+  --card: #ffffff;
+  --ink: #2a1b1d;
+  --muted: #6e5f5c;
+  --line: #ead9c0;
+  --good: #2b8a3e;
+  --bad: #b02a37;
+  --bad-soft: #fdecee;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(86, 20, 32, .06), 0 8px 24px rgba(86, 20, 32, .07);
+  --heading: Georgia, "Times New Roman", serif;
+  --persian: "Vazirmatn", "Segoe UI", Tahoma, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--cream);
+  color: var(--ink);
+  font: 16px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+[hidden] { display: none !important; }
+
+
+/* ---------- banner ---------- */
+
+.banner {
+  padding: 28px 16px 26px;
+  background: linear-gradient(180deg, var(--maroon), var(--maroon-dark));
+  color: var(--cream);
+  text-align: center;
+  border-bottom: 3px solid var(--gold);
+}
+
+.banner h1 {
+  margin: 0;
+  font: 700 2rem/1.2 var(--heading);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.banner .fa-word {
+  margin: 6px 0 0;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.banner .fa-word span {
+  font: 700 1.6rem/1 var(--persian);
+  color: #fff;
+}
+
+.banner .fa-word small {
+  font-size: .85rem;
+  color: #f1d9a3;
+  letter-spacing: .04em;
+}
+
+
+
+/* ---------- page column ---------- */
+
+main {
+  width: min(680px, 100%);
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: grid;
+  gap: 18px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px 22px;
+  display: grid;
+  gap: 14px;
+}
+
+.card h2 {
+  margin: 0;
+  font: 700 1.05rem/1.3 var(--heading);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--maroon);
+}
+
+
+/* ---------- photo area ---------- */
+
+.lead {
+  margin: -4px 0 0;
+  font-size: .93rem;
+  color: var(--muted);
+}
+
+#drop {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  border: 2px dashed var(--gold);
+  border-radius: 10px;
+  background: #fffaf1;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+
+#drop:hover,
+#drop.over {
+  background: var(--gold-soft);
+  border-color: var(--maroon);
+}
+
+#drop .big-hint {
+  display: block;
+  font-size: 2.4rem;
+  line-height: 1;
+  margin-bottom: 8px;
+  color: var(--maroon);
+}
+
+#drop img,
+#drop video {
+  max-width: 100%;
+  max-height: 420px;
+  border-radius: 8px;
+}
+
+#drop img {
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+#stage {                        /* holds the photo and the drag-selection box */
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+#selbox {
+  position: absolute;
+  border: 3px solid #a0202f;
+  background: rgba(160, 32, 47, .12);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+
+/* ---------- buttons ---------- */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+button,
+label.btn {
+  font: inherit;
+  font-size: .95rem;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--gold-soft);
+  color: var(--maroon);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .05s;
+}
+
+button:hover,
+label.btn:hover { border-color: var(--gold); background: #f8e6b8; }
+
+button:active { transform: translateY(1px); }
+
+button.primary {                /* "Read letter": full width, the main action */
+  width: 100%;
+  padding: 12px;
+  font-size: 1.05rem;
+  background: var(--maroon);
+  border-color: var(--maroon);
+  color: var(--gold);
+  letter-spacing: .03em;
+}
+
+button.primary:hover { background: var(--maroon-dark); }
+
+button.live {                   /* "Capture" while the camera is on: the next thing to press */
+  background: var(--maroon);
+  border-color: var(--maroon);
+  color: #fff;
+}
+
+button.danger {
+  background: #fff;
+  border-color: #f0c2c7;
+  color: var(--bad);
+}
+
+button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+button:focus-visible,
+label.btn:focus-within,
+#drop:focus-visible {
+  outline: 3px solid var(--maroon);
+  outline-offset: 2px;
+}
+
+input[type=file] { display: none; }
+
+#selrow {
+  font-size: .9rem;
+  color: var(--muted);
+  align-items: center;
+}
+
+
+/* ---------- messages ---------- */
+
+#err {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--bad-soft);
+  border: 1px solid #f0c2c7;
+  border-left: 4px solid var(--bad);
+  color: var(--bad);
+}
+
+#err:empty { display: none; }
+
+
+/* ---------- result: letter tile on the left, details on the right ---------- */
+
+#result {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 24px;
+  row-gap: 14px;
+}
+
+#result h2 { grid-column: 1 / -1; }
+
+.details {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.letter-tile {
+  width: 128px;
+  height: 128px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--maroon);
+  color: var(--gold);
+  font: 700 4.6rem/1 var(--persian);
+  box-shadow: inset 0 0 0 3px var(--gold);
+}
+
+#latin {
+  font: 700 2.6rem/1.1 var(--heading);
+  color: var(--maroon);
+}
+
+/* the chart spells eyn as ʿ and alef as -, which are tiny at text size: show them in a framed tile */
+#latin.symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.2rem;
+  height: 4.2rem;
+  font-size: 3.6rem;
+  line-height: 1;
+  border: 2px solid var(--gold);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+#latin.symbol.high { font-family: "Times New Roman", Times, serif; }
+
+#latin.symbol.high span {          /* ʿ is tiny and drawn high up, like an apostrophe */
+  display: inline-block;
+  transform: translateY(.7em) scale(2.4);
+}
+
+#name { color: var(--muted); }
+
+.conf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  font-size: .92rem;
+}
+
+#conf { white-space: nowrap; }
+
+.bar {
+  flex: 0 1 220px;
+  min-width: 80px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--gold);
+  border-radius: 99px;
+  transition: width .3s;
+}
+
+.bar.low span { background: var(--bad); }
+
+#alts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: .88rem;
+}
+
+#alts .chip {
+  padding: 3px 12px;
+  border-radius: 99px;
+  background: var(--gold-soft);
+  border: 1px solid var(--gold);
+  color: var(--maroon);
+}
+
+#how b { font-weight: 800; }
+
+#unsure {                       /* confidence under 50%: a best guess, not an answer */
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff4e0;
+  border: 1px solid #f0c27b;
+  color: #8a4b00;
+  font-size: .88rem;
+}
+
+#result.unsure .letter-tile { opacity: .55; }
+#result.unsure #latin { opacity: .6; }
+
+#how {
+  margin-top: 4px;
+  padding: 3px 12px;
+  border-radius: 99px;
+  background: var(--maroon);
+  color: var(--gold);
+  font-size: .85rem;
+}
+
+
+/* ---------- how the app read the photo: the two steps side by side ---------- */
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.steps figure {
+  margin: 0;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #fffaf1;
+  border: 1px solid var(--line);
+}
+
+.steps figcaption {
+  font-size: .9rem;
+  color: var(--muted);
+}
+
+.steps figcaption b {
+  display: block;
+  color: var(--maroon);
+}
+
+#found {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+#view {
+  width: 160px;
+  height: 160px;
+  border-radius: 12px;
+  background: #000;
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+
+/* ---------- save as test photo ---------- */
+
+#savebox select {
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  max-width: 100%;
+}
+
+#truth { width: 100%; }
+
+.save-row {                     /* [Save photo]  to folder  [real_photos/...] */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: .92rem;
+}
+
+#saved {
+  color: var(--good);
+  font-size: .92rem;
+}
+
+#saved:empty { display: none; }
+
+
+/* ---------- laptops and PCs: two columns ----------
+   [ Your photo        ] [ Answer      ]
+   [ How it was read   ] [ Save photo  ]          (phones keep the single column) */
+
+@media (min-width: 960px) {
+  main {
+    width: min(1200px, 100%);
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  /* title on the left, lined up with the left edge of the cards below (phones keep it centred) */
+  .banner {
+    text-align: left;
+    padding-left: max(16px, calc((100% - 1200px) / 2 + 16px));
+  }
+
+  .banner .fa-word { justify-content: flex-start; }
+}
+
+
+/* ---------- small screens ---------- */
+
+@media (max-width: 520px) {
+  .banner h1 { font-size: 1.5rem; }
+  .card { padding: 16px; }
+  #result { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .details { justify-items: center; }
+  #alts { justify-content: center; }
+}

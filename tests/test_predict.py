@@ -22,7 +22,7 @@ def test_model_has_expected_size():
 def test_model_accepts_preprocessed_size():
     import torch
     from common import SIZE
-    assert PersianCNN()(torch.zeros(1, 1, SIZE, SIZE)).shape == (1, 32)
+    assert PersianCNN()(torch.zeros(1, 1, SIZE, SIZE)).shape == (1, 33)      # 32 letters + not a letter
 
 
 def test_missing_model_file_gives_clear_error(tmp_path):

@@ -157,6 +157,24 @@ def _pick_at_tip(st, tip, direction, arrow_area):
     return best
 
 
+def _with_close_pieces(st, i):
+    """Box of shape i plus the pieces right next to it (a letter whose stroke broke in two, such as
+    the head and stem of mim on a small photo). Neighbouring letters on a sheet are further away."""
+    x, y, w, h = (int(v) for v in st[i][:4])
+    x1, y1 = x + w, y + h
+    gap = 0.12 * max(w, h)                                     # measured: 0.10-0.15 all work
+    for _ in range(2):                                           # a piece next to a piece
+        for j in range(1, len(st)):
+            jx, jy, jw, jh, ja = (int(v) for v in st[j])
+            if ja < 0.05 * st[i][4]:
+                continue
+            dx = max(x - (jx + jw), jx - x1, 0)
+            dy = max(y - (jy + jh), jy - y1, 0)
+            if max(dx, dy) <= gap:
+                x, y, x1, y1 = min(x, jx), min(y, jy), max(x1, jx + jw), max(y1, jy + jh)
+    return x, y, x1 - x, y1 - y
+
+
 def _blank_outside(crop, region, paper, near=None):
     """Paint out ink shapes lying mostly outside the marked region (whole shapes, not pixels).
     near: a wider region where small separate parts (a dot the highlighter missed) may still be
@@ -216,7 +234,7 @@ def find_marked_letter(img):
         i = _pick_at_tip(st, *arrow, (mark > 0).sum())
         if i is None:
             return None
-        kind, box = "arrow", tuple(st[i][:4])
+        kind, box = "arrow", _with_close_pieces(st, i)
 
     # crop from the full-size photo, with room for dots above / below
     x, y, w, h = box

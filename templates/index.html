@@ -1,193 +1,128 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Persian letter reader</title>
-<style>
-:root{--ink:#1d2433;--paper:#f3f5f9;--line:#c9d0de;--accent:#1f4fd8}
-*{box-sizing:border-box}
-body{margin:0;font-family:Georgia,serif;color:var(--ink);background:var(--paper);min-height:100vh;display:grid;place-items:center;padding:20px}
-main{width:min(720px,100%);display:grid;gap:20px}
-h1{font-size:2rem;margin:0}p.sub{margin:4px 0 0;color:#55607a}
-#drop{border:2px dashed var(--line);background:#fff;border-radius:6px;min-height:280px;display:grid;place-items:center;text-align:center;padding:16px;cursor:pointer}
-#drop.over{border-color:var(--accent)}
-#drop img{max-width:100%;max-height:420px;display:block;user-select:none;-webkit-user-drag:none;touch-action:none;cursor:crosshair}
-#stage{position:relative;display:inline-block;line-height:0}
-#selbox{position:absolute;border:3px solid #2e9e4f;background:rgba(46,158,79,.12);pointer-events:none;border-radius:3px}
-#selrow{color:#55607a;font-size:.95rem;align-items:center}
-#how{color:#1b6b3a;margin-top:6px}
-.row{display:flex;gap:10px;flex-wrap:wrap}
-button,label.btn{font:inherit;background:var(--accent);color:#fff;border:0;border-radius:4px;padding:10px 16px;cursor:pointer}
-button.alt,label.btn{background:#fff;color:var(--ink);border:1px solid var(--line)}
-button:focus-visible,label.btn:focus-within,#drop:focus-visible{outline:3px solid #ffb703;outline-offset:2px}
-button:disabled{opacity:.5}
-#result{background:#fff;border:1px solid var(--line);border-radius:6px;padding:20px;display:none;gap:24px;align-items:center;flex-wrap:wrap}
-#howread{background:#fff;border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;gap:12px}
-#howread h2,#savebox h2{font-size:1.05rem;margin:0}
-.steps{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
-.steps figure{margin:0;display:grid;gap:6px;flex:1 1 200px;max-width:100%}
-.steps figcaption{color:#55607a;font-size:.9rem}
-.steps figcaption b{color:var(--ink)}
-#found{max-width:100%;max-height:220px;object-fit:contain;justify-self:start;border-radius:4px;border:1px solid var(--line)}
-#view{width:160px;height:160px;border-radius:10px;background:#000;box-shadow:0 1px 4px rgba(0,0,0,.25)}
-#savebox{background:#fff;border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;gap:10px}
-#savebox select{font:inherit;padding:8px;border:1px solid var(--line);border-radius:4px;max-width:100%}
-#saved{color:#1b6b3a;min-height:1.4em}
-#result .big{font-size:5rem;line-height:1;direction:rtl}
-#latin{font-size:2.4rem;font-weight:bold;line-height:1.1}
-/* the chart spells eyn as ʿ and alef as -, which are tiny at text size: show them in a framed tile */
-#latin.symbol{display:inline-flex;align-items:center;justify-content:center;width:4.2rem;height:4.2rem;
- font-size:3.6rem;line-height:1;border:2px solid var(--line);border-radius:10px;margin-bottom:6px;overflow:hidden}
-#latin.symbol.high{font-family:"Times New Roman",Times,serif}
-#latin.symbol.high span{display:inline-block;transform:translateY(.7em) scale(2.4)}   /* ʿ is tiny and drawn high up */
-.alts{color:#55607a;margin-top:6px}
-#err{color:#b3261e;min-height:1.4em}
-input[type=file]{display:none}
-[hidden]{display:none!important}
-</style></head><body><main>
-<header><h1>Persian letter reader</h1>
-<p class="sub">Upload or photograph one Persian letter to get its English spelling. A whole alphabet sheet
-works too if one letter is circled, highlighted or pointed at with an arrow, or if you drag a box around it.</p></header>
-<div id="drop" tabindex="0" role="button" aria-label="Choose an image"><span id="hint">Drop an image here, or click to choose one</span></div>
-<div class="row">
- <button class="alt" id="camBtn" type="button">Take photo</button>
- <button class="alt" id="mirrorBtn" type="button" aria-pressed="false" hidden>Mirror preview: off</button>
- <button class="alt" id="flipBtn" type="button" hidden>Switch camera</button><input id="cam" type="file" accept="image/*" capture="environment">
- <label class="btn">Choose file<input id="file" type="file" accept="image/*"></label>
- <button id="go" disabled>Read letter</button>
-</div>
-<div class="row" id="selrow" hidden>
- <span id="selhint">Tip: drag a box around one letter on the photo to read only that letter.</span>
- <button class="alt" id="clearSel" type="button" hidden>Clear selection</button>
-</div>
-<div id="err" role="alert"></div>
-<section id="result" aria-live="polite">
- <div class="big" id="letter"></div>
- <div><div id="latin"></div><div id="name" class="alts"></div><div id="conf"></div><div class="alts" id="alts"></div><div id="how"></div></div>
-</section>
-<section id="howread" hidden>
- <h2>How the app read your photo</h2>
- <div class="steps">
-  <figure><img id="found" alt="Your photo with a green box around the letter that was read">
-   <figcaption><b>1. Found the letter here</b><br>The green box is the part of your photo that was read.
-   If it is around the wrong thing, drag a box around the right letter on your photo and read again.</figcaption></figure>
-  <figure><img id="view" alt="The cleaned-up black and white letter the model read">
-   <figcaption><b>2. Cleaned-up letter</b><br>Background, lines and shadows removed. This is exactly
-   what the model looked at. Dots should still be visible.</figcaption></figure>
- </div>
-</section>
-<section id="savebox" hidden>
- <h2>Save as test photo</h2>
- <label for="truth">This letter really is:</label>
- <select id="truth">{% for l in letters %}<option value="{{ l.id }}">{{ l.letter }}  {{ l.latin }}  ({{ l.name }})</option>{% endfor %}</select>
- <div class="row"><button class="alt" id="saveBtn" type="button">Save to real_photos/random_test_photos</button></div>
- <div id="saved" role="status"></div>
-</section>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Persian letter reader</title>
+  <link rel="icon" href="{{ url_for('static', filename='icon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<!-- title banner -->
+<header class="banner">
+  <h1>Persian Letter Reader</h1>
+  <p class="fa-word">
+    <span lang="fa">الفبا</span>
+    <small>alefbâ &middot; &ldquo;alphabet&rdquo; in Persian</small>
+  </p>
+</header>
+
+<main>
+
+  <!-- 1. the photo -->
+  <section class="card" id="photo">
+    <h2>Your photo</h2>
+    <p class="lead">Upload or photograph one Persian letter to get its English spelling. A whole
+       alphabet sheet works too if one letter is circled, highlighted or pointed at with an arrow,
+       or if you drag a box around it.</p>
+    <div id="drop" tabindex="0" role="button" aria-label="Choose an image">
+      <span id="hint">
+        <span class="big-hint" aria-hidden="true">&#8681;</span>
+        Drop an image here, or click to choose one
+      </span>
+    </div>
+
+    <div class="row">
+      <button id="camBtn" type="button">Take photo</button>
+      <button id="camOff" class="danger" type="button" hidden>Turn off camera</button>
+      <button id="mirrorBtn" type="button" aria-pressed="false" hidden>Mirror preview: off</button>
+      <button id="flipBtn" type="button" hidden>Switch camera</button>
+      <label class="btn">Choose file<input id="file" type="file" accept="image/*"></label>
+      <input id="cam" type="file" accept="image/*" capture="environment">
+    </div>
+
+    <button id="go" class="primary" type="button" disabled>Read letter</button>
+
+    <div class="row" id="selrow" hidden>
+      <span id="selhint">Tip: drag a box around one letter on the photo to read only that letter.</span>
+      <button id="clearSel" type="button" hidden>Clear selection</button>
+    </div>
+
+    <div id="err" role="alert"></div>
+  </section>
+
+  <!-- shown until a letter is read (on a wide screen it keeps the answer's place) -->
+  <section class="card" id="placeholder">
+    <h2>Answer</h2>
+    <p class="lead">Read a letter and its English spelling appears here.</p>
+  </section>
+
+  <!-- 2. the answer -->
+  <section class="card" id="result" aria-live="polite" hidden>
+    <h2>Answer</h2>
+    <div class="letter-tile" id="letter" lang="fa"></div>
+    <div class="details">
+      <div id="latin"></div>
+      <div id="name"></div>
+      <div class="conf">
+        <div class="bar" id="confbar"><span></span></div>
+        <span id="conf"></span>
+      </div>
+      <div id="alts"></div>
+      <div id="unsure" hidden>Not sure: this photo may not show a Persian letter.
+        Retake it closer, with one letter filling most of the photo.</div>
+      <div id="how"></div>
+    </div>
+  </section>
+
+  <!-- 3. how the photo was read -->
+  <section class="card" id="howread" hidden>
+    <h2>How the app read your photo</h2>
+    <div class="steps">
+      <figure>
+        <img id="found" alt="Your photo with a box around the letter that was read">
+        <figcaption>
+          <b>1. Found the letter here</b>
+          The box is the part of your photo that was read. If it is around the wrong
+          thing, drag a box around the right letter on your photo and read again.
+        </figcaption>
+      </figure>
+      <figure>
+        <img id="view" alt="The cleaned-up black and white letter the model read">
+        <figcaption>
+          <b>2. Cleaned-up letter</b>
+          Background, lines and shadows removed. This is exactly what the model looked at.
+          Dots should still be visible.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 4. keep the photo as a test image -->
+  <section class="card" id="savebox" hidden>
+    <h2>Save as test photo</h2>
+    <label for="truth">This letter really is:</label>
+    <select id="truth">
+      {% for l in letters %}
+      <option value="{{ l.id }}">{{ l.letter }}  {{ l.latin }}  ({{ l.name }})</option>
+      {% endfor %}
+    </select>
+    <div class="save-row">
+      <button id="saveBtn" type="button">Save photo</button>
+      <label for="folder">to folder</label>
+      <select id="folder">
+        {% for f in folders %}
+        <option value="{{ f }}">real_photos/{{ f }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div id="saved" role="status"></div>
+  </section>
+
 </main>
-<script>
-const $=id=>document.getElementById(id);let current=null,stream=null,mirrored=false,facing="environment",sel=null;
-function showCamControls(on){$("mirrorBtn").hidden=!on;$("flipBtn").hidden=!on}
-function applyMirror(){const v=$("drop").querySelector("video");if(v)v.style.transform=mirrored?"scaleX(-1)":"none";
- $("mirrorBtn").textContent="Mirror preview: "+(mirrored?"on":"off");$("mirrorBtn").setAttribute("aria-pressed",mirrored)}
-function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$("camBtn").textContent="Take photo";showCamControls(false)}
-// (opening the camera clears the current photo, so a click on the camera area never opens the file picker)
-function hideResults(){$("result").style.display="none";$("savebox").hidden=true;$("howread").hidden=true}
-function setFile(f){if(!f)return;stopCam();current=f;$("err").textContent="";hideResults();
- const img=new Image();img.src=URL.createObjectURL(f);img.alt="Selected image. Drag on it to select one letter.";img.draggable=false;
- const stage=document.createElement("div");stage.id="stage";
- const box=document.createElement("div");box.id="selbox";box.hidden=true;
- stage.append(img,box);$("drop").replaceChildren(stage);setupSelect(img,box);
- clearSel();$("selrow").hidden=false;$("go").disabled=false;}
 
-// drag a box on the photo to choose one letter (kept in the photo's own pixels)
-function clearSel(){sel=null;const b=$("selbox");if(b)b.hidden=true;$("clearSel").hidden=true;
- $("selhint").textContent="Tip: drag a box around one letter on the photo to read only that letter."}
-function setupSelect(img,box){
- let start=null;
- const pos=e=>{const r=img.getBoundingClientRect();
-  return [Math.min(Math.max(e.clientX-r.left,0),r.width),Math.min(Math.max(e.clientY-r.top,0),r.height)]};
- const draw=(a,b)=>{const x=Math.min(a[0],b[0]),y=Math.min(a[1],b[1]);
-  Object.assign(box.style,{left:x+"px",top:y+"px",width:Math.abs(a[0]-b[0])+"px",height:Math.abs(a[1]-b[1])+"px"});box.hidden=false};
- img.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();img.setPointerCapture(e.pointerId);start=pos(e);draw(start,start)});
- img.addEventListener("pointermove",e=>{if(start)draw(start,pos(e))});
- img.addEventListener("pointerup",e=>{if(!start)return;const end=pos(e),a=start;start=null;
-  const w=Math.abs(a[0]-end[0]),h=Math.abs(a[1]-end[1]);
-  if(w<8||h<8){clearSel();return}
-  const k=img.naturalWidth/img.clientWidth;
-  sel={x:Math.round(Math.min(a[0],end[0])*k),y:Math.round(Math.min(a[1],end[1])*k),w:Math.round(w*k),h:Math.round(h*k)};
-  $("clearSel").hidden=false;$("selhint").textContent="Only the green box will be read.";hideResults()});
- img.addEventListener("click",e=>e.stopPropagation());
-}
-$("clearSel").onclick=()=>{clearSel();hideResults()};
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&sel){clearSel();hideResults()}});
-$("file").onchange=e=>setFile(e.target.files[0]);
-$("cam").onchange=e=>setFile(e.target.files[0]);
-$("drop").onclick=()=>{if(!stream&&!current)$("file").click()};
-$("drop").onkeydown=e=>{if(e.target===$("drop")&&(e.key==="Enter"||e.key===" "))$("file").click()};
-$("drop").ondragover=e=>{e.preventDefault();$("drop").classList.add("over")};
-$("drop").ondragleave=()=>$("drop").classList.remove("over");
-$("drop").ondrop=e=>{e.preventDefault();$("drop").classList.remove("over");setFile(e.dataTransfer.files[0])};
-
-async function openStream(){
- if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
- const tries=[{video:{facingMode:{ideal:facing}}},{video:true}];
- let lastErr;
- for(const c of tries){try{stream=await navigator.mediaDevices.getUserMedia(c);break}catch(e){lastErr=e}}
- if(!stream)throw lastErr;
- const v=document.createElement("video");v.autoplay=true;v.muted=true;v.playsInline=true;v.setAttribute("playsinline","");
- v.srcObject=stream;v.style.cssText="max-width:100%;max-height:260px";
- $("drop").replaceChildren(v);$("selrow").hidden=true;
- // follow what the browser actually gave us (laptops have no rear camera)
- const fm=stream.getVideoTracks()[0].getSettings().facingMode;if(fm)facing=fm;
- // preview un-mirrored by default so a letter held up to the camera reads the right way round
- mirrored=false;applyMirror();
- try{await v.play()}catch(e){}
-}
-function captureFrame(){
- const v=$("drop").querySelector("video");
- if(!v||!v.videoWidth){$("err").textContent="Camera is still starting, try again in a moment.";return}
- const c=document.createElement("canvas");c.width=v.videoWidth;c.height=v.videoHeight;
- // never mirror the saved photo: the raw frame shows the paper the right way round,
- // and a mirrored Persian letter looks like a different letter
- c.getContext("2d").drawImage(v,0,0);
- c.toBlob(b=>setFile(new File([b],"capture.jpg",{type:"image/jpeg"})),"image/jpeg",0.95);
-}
-$("camBtn").onclick=async()=>{
- if(stream){captureFrame();return}
- if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-  $("err").textContent="Live camera needs https or localhost. Using the file picker instead.";$("cam").click();return}
- try{await openStream();
-  current=null;$("camBtn").textContent="Capture";showCamControls(true);$("go").disabled=true;$("err").textContent="";hideResults();
- }catch(e){stream=null;showCamControls(false);
-  $("err").textContent=(e&&e.name==="NotAllowedError"?"Camera permission was denied.":"Camera not available.")+" Choose a file instead.";
-  $("cam").click()}};
-$("mirrorBtn").onclick=()=>{mirrored=!mirrored;applyMirror()};
-$("flipBtn").onclick=async()=>{
- facing=facing==="user"?"environment":"user";
- try{await openStream()}catch(e){$("err").textContent="Could not switch camera."}};
-$("go").onclick=async()=>{
- $("go").disabled=true;$("go").textContent="Reading...";$("err").textContent="";
- try{const fd=new FormData();fd.append("image",current);
-  if(sel){fd.append("sel_x",sel.x);fd.append("sel_y",sel.y);fd.append("sel_w",sel.w);fd.append("sel_h",sel.h)}
-  const r=await fetch("/predict",{method:"POST",body:fd});const d=await r.json();
-  if(!r.ok)throw new Error(d.error||"Something went wrong.");
-  const [t,...rest]=d.results;
-  $("letter").textContent=t.letter;
-  const sym=!/[a-z]/i.test(t.latin),span=document.createElement("span");span.textContent=t.latin;
-  $("latin").replaceChildren(span);$("latin").classList.toggle("symbol",sym);$("latin").classList.toggle("high",t.latin==="ʿ");
-  $("name").textContent=t.name+(t.ascii!==t.latin?" · plain: "+t.ascii:"");
-  $("conf").textContent="Confidence "+Math.round(t.confidence*100)+"%"+(t.confidence<0.6?" (low: retake the photo)":"");
-  $("alts").textContent="Other guesses: "+rest.map(x=>x.letter+" "+x.latin+" ("+x.name+") "+Math.round(x.confidence*100)+"%").join(", ");
-  $("how").textContent="Read: "+d.how;
-  $("found").src=d.found;$("view").src=d.view;
-  $("truth").value=t.id;$("saved").textContent="";$("saveBtn").disabled=false;
-  $("result").style.display="flex";$("howread").hidden=false;$("savebox").hidden=false;
- }catch(e){$("err").textContent=e.message}
- $("go").textContent="Read letter";$("go").disabled=false;};
-$("saveBtn").onclick=async()=>{
- $("saveBtn").disabled=true;$("saved").textContent="Saving...";
- try{const fd=new FormData();fd.append("image",current);fd.append("class_id",$("truth").value);
-  const r=await fetch("/save",{method:"POST",body:fd});const d=await r.json();
-  if(!r.ok)throw new Error(d.error||"Could not save.");
-  $("saved").textContent="Saved as "+d.folder+"/"+d.saved;
- }catch(e){$("saved").textContent="";$("err").textContent=e.message;$("saveBtn").disabled=false}};
-</script></body></html>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

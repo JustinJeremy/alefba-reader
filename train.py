@@ -1,12 +1,12 @@
 """Train. Expects data/<source>/<class 0..31>/*.png (handwritten from convert_dataset.py, printed from prepare_data.py).
-Writes persian_cnn.pt plus results/metrics.txt and results/confusion_matrix.csv."""
+Writes persian_cnn.pt, letter_profile.npz, results/metrics.txt and results/confusion_matrix.csv."""
 import glob, os, random, time
 from multiprocessing import Pool
 import cv2, numpy as np, torch, torch.nn as nn, torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 import torchvision.transforms.v2 as T
-from common import PersianCNN, preprocess, NAMES, SIZE
+from common import PersianCNN, preprocess, NAMES, SIZE, NOT_A_LETTER, NUM_CLASSES
 
 EPOCHS = 30
 BATCH = 128
@@ -36,6 +36,7 @@ def load_data():
     """Preprocess every training image (in parallel). Unreadable / blank files are skipped but reported."""
     items = [(p, c, source) for source in ("handwritten", "printed")
              for c in range(32) for p in sorted(glob.glob(f"data/{source}/{c}/*"))]
+    items += [(p, NOT_A_LETTER, "negative") for p in sorted(glob.glob(f"data/negative/{NOT_A_LETTER}/*"))]
     with Pool(os.cpu_count()) as pool:
         out = pool.map(_prep, [p for p, _, _ in items], chunksize=64)
     X, y, src, font, skipped = [], [], [], [], []
@@ -98,7 +99,7 @@ def report(model, X, y, src, te, held, dev, seconds):
              f"train/val/test images: see split in train.py; test = {len(te)}, held-out font test = {len(held)}",
              "",
              f"TEST accuracy (all):        {accuracy_score(y[te], p):.4f}"]
-    for s in ("handwritten", "printed"):
+    for s in ("handwritten", "printed", "negative"):
         m = src[te] == s
         if m.any():
             lines.append(f"TEST accuracy ({s}):{' ' * (12 - len(s))}{accuracy_score(y[te][m], p[m]):.4f}  (n={m.sum()})")
@@ -112,10 +113,13 @@ def report(model, X, y, src, te, held, dev, seconds):
         for _ in range(100): model(x1)
     lines.append(f"model inference time: {(time.perf_counter() - t) * 10:.2f} ms per image (batch of 1, {dev})")
     lines += ["", "Per-letter results on the test set:",
-              classification_report(y[te], p, labels=range(32), target_names=NAMES, digits=3)]
+              classification_report(y[te], p, labels=range(NUM_CLASSES), target_names=NAMES + ["NOT A LETTER"], digits=3)]
+    letters = y[te] != NOT_A_LETTER
+    lines.insert(-2, f"real letters wrongly refused as 'not a letter': {(p[letters] == NOT_A_LETTER).mean():.4f}"
+                     f"  | non-letters caught: {(p[~letters] == NOT_A_LETTER).mean():.4f}")
     os.makedirs(RESULTS, exist_ok=True)
     open(os.path.join(RESULTS, "metrics.txt"), "w", encoding="utf-8").write("\n".join(lines))
-    np.savetxt(os.path.join(RESULTS, "confusion_matrix.csv"), confusion_matrix(y[te], p, labels=range(32)),
+    np.savetxt(os.path.join(RESULTS, "confusion_matrix.csv"), confusion_matrix(y[te], p, labels=range(NUM_CLASSES)),
                fmt="%d", delimiter=",")
     print("\n".join(lines))
 
@@ -126,12 +130,12 @@ def main():
     t0 = time.time()
     X, y, src, font = load_data()
     print(f"images: {len(X)} | classes found: {len(set(y))} | loaded in {time.time() - t0:.0f} s")
-    if len(set(y)) != 32:
-        raise SystemExit("Need images for all 32 classes.")
+    if len(set(y)) != NUM_CLASSES:
+        raise SystemExit(f"Need images for all {NUM_CLASSES} classes (32 letters + not-a-letter: run prepare_data.py).")
     tr, va, te, held = split(y, src, font)
 
-    counts = np.bincount(y[tr], minlength=32)
-    w = torch.tensor(len(tr) / (32 * np.maximum(counts, 1)), dtype=torch.float32)
+    counts = np.bincount(y[tr], minlength=NUM_CLASSES)
+    w = torch.tensor(len(tr) / (NUM_CLASSES * np.maximum(counts, 1)), dtype=torch.float32)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     model = PersianCNN().to(dev)
     loss_fn = nn.CrossEntropyLoss(weight=w.to(dev))
@@ -153,6 +157,8 @@ def main():
 
     model.load_state_dict(torch.load(MODEL_PATH, map_location=dev))
     report(model, X, y, src, te, held, dev, time.time() - t0)
+    import build_profile                                  # what each letter looks like, for refusing non-letters
+    build_profile.build(model.cpu(), X, y)
 
 
 if __name__ == "__main__":
