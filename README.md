@@ -1,5 +1,7 @@
 # Persian Letter Recognition (CNN)
 
+Full guide (commands, adding test photos, where to change what): info/guide.md
+
 Setup:        pip install -r requirements.txt
 Data:         1) python convert_dataset.py <folder with Random1..Random10>   (see below), or Convert IFHCDB letter images to PNGs in data/handwritten/<0..31>/ (class order = LETTERS in common.py; skip digits)
               2) python prepare_data.py   renders the letters (and 'not a letter' examples: Latin letters, digits,
