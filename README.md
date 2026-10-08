@@ -21,3 +21,4 @@ Marked sheets: a photo of a whole alphabet sheet works if one letter is circled 
               Test set: python score_testset.py marked_set
 No letter:    blank / dark photos, noise and photos far from every letter are refused with "No Persian letter
               found" (predict.py; letter_profile.npz holds each letter's average look: python build_profile.py)
+              Test photos that must be refused: no_letter_set/ (checked by tests/test_no_letter.py)

@@ -1,7 +1,6 @@
 """The helper scripts import cleanly (no work at import time) and their pieces behave."""
 import os
 import numpy as np
-import torch
 from conftest import ROOT
 from common import SIZE
 

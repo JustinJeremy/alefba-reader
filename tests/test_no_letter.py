@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import pytest
 from conftest import ROOT
-from predict import predict_with_view, predict_file, NO_LETTER, NO_LETTER_BLANK, PROFILE_PATH
+from predict import predict_with_view, predict_file, NO_LETTER_BLANK, PROFILE_PATH
 
 rng = np.random.RandomState(0)
 
@@ -48,3 +48,43 @@ def test_app_shows_the_message():
     r = app.test_client().post("/predict", data={"image": (io.BytesIO(buf.tobytes()), "dark.jpg")},
                                content_type="multipart/form-data")
     assert r.status_code == 400 and r.get_json()["error"] == NO_LETTER_BLANK
+
+
+NO_LETTER_SET = os.path.join(ROOT, "no_letter_set")
+
+
+def test_phone_photo_of_a_desk_shadow_is_refused():
+    # was read as dal (76%): the shadow edge of a desk runs off the photo
+    with pytest.raises(ValueError, match="runs off the edge"):
+        predict_file(os.path.join(NO_LETTER_SET, "phone_desk_shadow.jpg"))
+
+
+def test_phone_photo_of_english_text_is_refused():
+    with pytest.raises(ValueError, match="does not look like Persian"):
+        predict_file(os.path.join(NO_LETTER_SET, "phone_english_text.jpg"))
+
+
+def test_persian_sheet_still_asks_for_a_mark():
+    with pytest.raises(ValueError, match="many letters"):
+        predict_file(os.path.join(ROOT, "marked_set", "sheet_without_mark.jpg"))
+
+
+def test_dragging_a_tight_box_is_not_an_edge_problem():
+    # a letter filling the user's own selection touches its edges: that is fine
+    from common import load_image
+    res, _, how = predict_with_view(load_image(os.path.join(ROOT, "marked_set", "sheet_without_mark.jpg")),
+                                    select=(1640, 1780, 140, 200))
+    assert res[0][0] == 27 and how == "your selection"
+
+
+def test_same_photo_can_be_saved_twice_in_different_folders(tmp_path, monkeypatch):
+    import app as app_module
+    monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))
+    c = app_module.app.test_client()
+    data = open(os.path.join(ROOT, "rehearsal_set", "q95", "15_shin.jpg"), "rb").read()
+    for folder in ("JJ", "Ethan", "JJ"):
+        r = c.post("/save", data={"image": (io.BytesIO(data), "x.jpg"), "class_id": "15", "folder": folder},
+                   content_type="multipart/form-data")
+        assert r.status_code == 200
+    assert sorted(os.listdir(tmp_path / "JJ")) == ["15_shin_1.jpg", "15_shin_2.jpg"]
+    assert os.listdir(tmp_path / "Ethan") == ["15_shin_1.jpg"]

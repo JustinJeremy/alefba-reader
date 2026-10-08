@@ -140,5 +140,6 @@ if __name__ == "__main__":
     ap.add_argument("--port", type=int, default=5000)
     a = ap.parse_args()
     if a.host == "0.0.0.0" and laptop_address():
-        print(f"\n  On your phone (same Wi-Fi), open:  http://{laptop_address()}:{a.port}\n")
+        print(f"\n  On this laptop, open:              http://127.0.0.1:{a.port}   (live camera works here)"
+              f"\n  On your phone (same Wi-Fi), open:  http://{laptop_address()}:{a.port}   (Take photo opens the phone camera)\n")
     app.run(host=a.host, port=a.port, debug=False)

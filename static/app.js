@@ -193,12 +193,20 @@ function captureFrame() {
   c.toBlob(b => setFile(new File([b], "capture.jpg", { type: "image/jpeg" })), "image/jpeg", 0.95);
 }
 
+// phones and tablets: their own camera app can take the photo (the file input with capture=)
+const isPhone = window.matchMedia("(pointer: coarse)").matches;
+
 $("camBtn").onclick = async () => {
   if (stream) { captureFrame(); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    // a phone opening the laptop's address: the browser allows no live preview there,
-    // so open the phone's own camera app instead (the photo comes straight back here)
-    $("cam").click();
+    // browsers only allow a live camera on http://127.0.0.1 / localhost (or https)
+    if (isPhone) {
+      $("cam").click();               // the phone's camera app takes the photo and it comes straight back
+    } else {
+      $("err").textContent = "The live camera only works when this page is opened at http://127.0.0.1:"
+        + (location.port || "5000") + " on this laptop (browsers block cameras on other addresses). "
+        + "Open that address, or use Choose file.";
+    }
     return;
   }
   try {
@@ -212,9 +220,11 @@ $("camBtn").onclick = async () => {
   } catch (e) {
     stream = null;
     showCamControls(false);
-    $("err").textContent = (e && e.name === "NotAllowedError" ? "Camera permission was denied."
-                                                              : "Camera not available.") + " Choose a file instead.";
-    $("cam").click();
+    const why = e && e.name === "NotAllowedError" ? "Camera permission was denied (allow it in the address bar)."
+              : e && e.name === "NotReadableError" ? "The camera is being used by another app. Close it and try again."
+              : "No camera was found.";
+    $("err").textContent = why + " You can also use Choose file.";
+    if (isPhone) $("cam").click();
   }
 };
 
@@ -301,10 +311,11 @@ $("saveBtn").onclick = async () => {
     const r = await fetch("/save", { method: "POST", body: fd });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || "Could not save.");
-    $("saved").textContent = "Saved as " + d.folder + "/" + d.saved;
+    $("saved").textContent = "Saved as " + d.folder + "/" + d.saved
+      + ". You can save it again, to another folder or as another letter.";
   } catch (e) {
     $("saved").textContent = "";
     $("err").textContent = e.message;
-    $("saveBtn").disabled = false;
   }
+  $("saveBtn").disabled = false;      // the same photo can be saved more than once
 };

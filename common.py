@@ -1,7 +1,6 @@
 """Shared pieces: classes, lookup table, preprocessing, model."""
 import cv2
 import numpy as np
-import torch
 import torch.nn as nn
 
 # 32 classes in standard Persian alphabetical order (index = class id)
