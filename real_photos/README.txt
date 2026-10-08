@@ -1,7 +1,8 @@
 REAL PHOTOS - TEST ONLY, never train on these.
 
 Folders
-  random_test_photos/   photos saved with the web app's "Save as test photo" button
+  random_test_photos/   photos saved with the web app's "Save as test photo" button,
+                        numbered per letter: 01_be_1.jpg, 01_be_2.jpg, ... (never overwritten)
   JJ/  Ethan/  Mark/  Kaye/   each person's own photos (handwriting and printed)
 
 Naming: start every file name with the letter's number and name, then anything you like:
