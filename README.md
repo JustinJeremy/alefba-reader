@@ -14,3 +14,7 @@ Tests:        python -m pytest              (unit + app + CLI tests, about 30 s)
 Score a set:  python score_testset.py rehearsal_set     (or hard_set; test-only images, never train on them)
 Real photos:  real_photos/ (TEST ONLY): random_test_photos/ from the app's "Save as test photo", plus JJ/ Ethan/ Mark/ Kaye/
               name files 01_be_anything.jpg (see real_photos/README.txt), then: python score_testset.py real_photos
+Marked sheets: a photo of a whole alphabet sheet works if one letter is circled / boxed, highlighted, or
+              pointed at with an arrow, in any marker colour (marks.py). Without a mark the app asks for one,
+              or you drag a box around the letter on the photo in the web app.
+              Test set: python score_testset.py marked_set
