@@ -47,7 +47,10 @@ def test_tiny_or_outside_selection_is_refused(sel):
 
 
 def test_single_letter_photos_have_no_mark():
-    for path in glob.glob(os.path.join(ROOT, "real_photos", "*", "*.jpg")):   # tinted webcam paper
+    # the first real photos: single letters on tinted webcam paper (the folder itself may later
+    # hold saved marked sheets too, so the files are listed by name)
+    for name in ("01_be_1.jpg", "01_be_2.jpg", "13_zhe_1.jpg"):
+        path = os.path.join(ROOT, "real_photos", "random_test_photos", name)
         assert marks.find_marked_letter(load_image(path)) is None, path
     assert marks.find_marked_letter(load_image(os.path.join(ROOT, "rehearsal_set", "q95", "01_be.jpg"))) is None
 
