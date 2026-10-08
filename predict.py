@@ -1,6 +1,7 @@
 """CLI:  python predict.py a.jpg b.jpg c.jpg [--ascii]"""
 import argparse, os, sys, time
 import torch
+import marks
 from common import PersianCNN, preprocess, caption_suspect, load_image, LETTERS, LOOKUP, LOOKUP_ASCII, NAMES
 
 # next to this file, so the app works no matter which folder it is started from
@@ -27,8 +28,41 @@ def _probs(img, strict=False, captions=False):
     with torch.no_grad():
         return torch.softmax(load_model()(x), 1)[0], (view, info["box"])
 
-def predict_with_view(img, topk=3):
-    """-> ([(class, confidence) x topk], (cleaned image, letter box)) for the crop the answer came from"""
+MANY_LETTERS = ("This photo shows many letters. Mark the one to read (circle it, highlight it or point "
+                "an arrow at it), or drag a box around it.")
+
+
+def predict_with_view(img, topk=3, select=None):
+    """Read one letter from a photo.
+    select: optional (x, y, w, h) box the user dragged around the letter.
+    -> ([(class, confidence) x topk], (cleaned image, letter box in img), how the letter was found)"""
+    ox = oy = 0
+    how = "whole photo"
+    if select is not None:
+        x, y, w, h = (int(v) for v in select)
+        x, y = max(0, x), max(0, y)
+        w, h = min(w, img.shape[1] - x), min(h, img.shape[0] - y)
+        if w < 8 or h < 8:
+            raise ValueError("The selected box is too small. Drag a box around the whole letter.")
+        img, ox, oy, how = img[y:y + h, x:x + w], x, y, "your selection"
+    target = marks.find_marked_letter(img)
+    if target is not None:
+        try:
+            res, (view, (bx, by, bw, bh)) = _read_one(target.crop, topk)
+            how = {"circle": "the circled letter", "highlight": "the highlighted letter",
+                   "arrow": "the letter the arrow points at"}[target.kind]
+            ox, oy = ox + target.offset[0], oy + target.offset[1]
+            return res, (view, (bx + ox, by + oy, bw, bh)), how
+        except ValueError:          # the "mark" held no letter: it was not a real mark, read the photo
+            pass
+    if select is None and marks.many_letters(img):
+        raise ValueError(MANY_LETTERS)
+    res, (view, (bx, by, bw, bh)) = _read_one(img, topk)
+    return res, (view, (bx + ox, by + oy, bw, bh)), how
+
+
+def _read_one(img, topk):
+    """The photo (or crop) holds one letter -> top-k, (cleaned image, letter box)."""
     p, view = _probs(img)
     if caption_suspect(img):                # a caption (small Latin text) sits under the letter
         try:

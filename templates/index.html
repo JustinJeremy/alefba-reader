@@ -10,7 +10,11 @@ main{width:min(720px,100%);display:grid;gap:20px}
 h1{font-size:2rem;margin:0}p.sub{margin:4px 0 0;color:#55607a}
 #drop{border:2px dashed var(--line);background:#fff;border-radius:6px;min-height:280px;display:grid;place-items:center;text-align:center;padding:16px;cursor:pointer}
 #drop.over{border-color:var(--accent)}
-#drop img{max-width:100%;max-height:260px}
+#drop img{max-width:100%;max-height:420px;display:block;user-select:none;-webkit-user-drag:none;touch-action:none;cursor:crosshair}
+#stage{position:relative;display:inline-block;line-height:0}
+#selbox{position:absolute;border:3px solid #2e9e4f;background:rgba(46,158,79,.12);pointer-events:none;border-radius:3px}
+#selrow{color:#55607a;font-size:.95rem;align-items:center}
+#how{color:#1b6b3a;margin-top:6px}
 .row{display:flex;gap:10px;flex-wrap:wrap}
 button,label.btn{font:inherit;background:var(--accent);color:#fff;border:0;border-radius:4px;padding:10px 16px;cursor:pointer}
 button.alt,label.btn{background:#fff;color:var(--ink);border:1px solid var(--line)}
@@ -36,7 +40,8 @@ input[type=file]{display:none}
 [hidden]{display:none!important}
 </style></head><body><main>
 <header><h1>Persian letter reader</h1>
-<p class="sub">Upload or photograph one isolated Persian letter to get its English spelling.</p></header>
+<p class="sub">Upload or photograph one Persian letter to get its English spelling. A whole alphabet sheet
+works too if one letter is circled, highlighted or pointed at with an arrow, or if you drag a box around it.</p></header>
 <div id="drop" tabindex="0" role="button" aria-label="Choose an image"><span id="hint">Drop an image here, or click to choose one</span></div>
 <div class="row">
  <button class="alt" id="camBtn" type="button">Take photo</button>
@@ -45,17 +50,21 @@ input[type=file]{display:none}
  <label class="btn">Choose file<input id="file" type="file" accept="image/*"></label>
  <button id="go" disabled>Read letter</button>
 </div>
+<div class="row" id="selrow" hidden>
+ <span id="selhint">Tip: drag a box around one letter on the photo to read only that letter.</span>
+ <button class="alt" id="clearSel" type="button" hidden>Clear selection</button>
+</div>
 <div id="err" role="alert"></div>
 <section id="result" aria-live="polite">
  <div class="big" id="letter"></div>
- <div><div id="latin"></div><div id="name" class="alts"></div><div id="conf"></div><div class="alts" id="alts"></div></div>
+ <div><div id="latin"></div><div id="name" class="alts"></div><div id="conf"></div><div class="alts" id="alts"></div><div id="how"></div></div>
 </section>
 <section id="howread" hidden>
  <h2>How the app read your photo</h2>
  <div class="steps">
   <figure><img id="found" alt="Your photo with a green box around the letter that was read">
    <figcaption><b>1. Found the letter here</b><br>The green box is the part of your photo that was read.
-   If it is around the wrong thing, retake the photo closer to the letter.</figcaption></figure>
+   If it is around the wrong thing, drag a box around the right letter on your photo and read again.</figcaption></figure>
   <figure><img id="view" alt="The cleaned-up black and white letter the model read">
    <figcaption><b>2. Cleaned-up letter</b><br>Background, lines and shadows removed. This is exactly
    what the model looked at. Dots should still be visible.</figcaption></figure>
@@ -70,18 +79,45 @@ input[type=file]{display:none}
 </section>
 </main>
 <script>
-const $=id=>document.getElementById(id);let current=null,stream=null,mirrored=false,facing="environment";
+const $=id=>document.getElementById(id);let current=null,stream=null,mirrored=false,facing="environment",sel=null;
 function showCamControls(on){$("mirrorBtn").hidden=!on;$("flipBtn").hidden=!on}
 function applyMirror(){const v=$("drop").querySelector("video");if(v)v.style.transform=mirrored?"scaleX(-1)":"none";
  $("mirrorBtn").textContent="Mirror preview: "+(mirrored?"on":"off");$("mirrorBtn").setAttribute("aria-pressed",mirrored)}
 function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$("camBtn").textContent="Take photo";showCamControls(false)}
-function setFile(f){if(!f)return;stopCam();current=f;$("err").textContent="";$("result").style.display="none";$("savebox").hidden=true;$("howread").hidden=true;
- const img=new Image();img.src=URL.createObjectURL(f);img.alt="Selected image";
- $("drop").replaceChildren(img);$("go").disabled=false;}
+// (opening the camera clears the current photo, so a click on the camera area never opens the file picker)
+function hideResults(){$("result").style.display="none";$("savebox").hidden=true;$("howread").hidden=true}
+function setFile(f){if(!f)return;stopCam();current=f;$("err").textContent="";hideResults();
+ const img=new Image();img.src=URL.createObjectURL(f);img.alt="Selected image. Drag on it to select one letter.";img.draggable=false;
+ const stage=document.createElement("div");stage.id="stage";
+ const box=document.createElement("div");box.id="selbox";box.hidden=true;
+ stage.append(img,box);$("drop").replaceChildren(stage);setupSelect(img,box);
+ clearSel();$("selrow").hidden=false;$("go").disabled=false;}
+
+// drag a box on the photo to choose one letter (kept in the photo's own pixels)
+function clearSel(){sel=null;const b=$("selbox");if(b)b.hidden=true;$("clearSel").hidden=true;
+ $("selhint").textContent="Tip: drag a box around one letter on the photo to read only that letter."}
+function setupSelect(img,box){
+ let start=null;
+ const pos=e=>{const r=img.getBoundingClientRect();
+  return [Math.min(Math.max(e.clientX-r.left,0),r.width),Math.min(Math.max(e.clientY-r.top,0),r.height)]};
+ const draw=(a,b)=>{const x=Math.min(a[0],b[0]),y=Math.min(a[1],b[1]);
+  Object.assign(box.style,{left:x+"px",top:y+"px",width:Math.abs(a[0]-b[0])+"px",height:Math.abs(a[1]-b[1])+"px"});box.hidden=false};
+ img.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();img.setPointerCapture(e.pointerId);start=pos(e);draw(start,start)});
+ img.addEventListener("pointermove",e=>{if(start)draw(start,pos(e))});
+ img.addEventListener("pointerup",e=>{if(!start)return;const end=pos(e),a=start;start=null;
+  const w=Math.abs(a[0]-end[0]),h=Math.abs(a[1]-end[1]);
+  if(w<8||h<8){clearSel();return}
+  const k=img.naturalWidth/img.clientWidth;
+  sel={x:Math.round(Math.min(a[0],end[0])*k),y:Math.round(Math.min(a[1],end[1])*k),w:Math.round(w*k),h:Math.round(h*k)};
+  $("clearSel").hidden=false;$("selhint").textContent="Only the green box will be read.";hideResults()});
+ img.addEventListener("click",e=>e.stopPropagation());
+}
+$("clearSel").onclick=()=>{clearSel();hideResults()};
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&sel){clearSel();hideResults()}});
 $("file").onchange=e=>setFile(e.target.files[0]);
 $("cam").onchange=e=>setFile(e.target.files[0]);
-$("drop").onclick=()=>{if(!stream)$("file").click()};
-$("drop").onkeydown=e=>{if(e.key==="Enter"||e.key===" ")$("file").click()};
+$("drop").onclick=()=>{if(!stream&&!current)$("file").click()};
+$("drop").onkeydown=e=>{if(e.target===$("drop")&&(e.key==="Enter"||e.key===" "))$("file").click()};
 $("drop").ondragover=e=>{e.preventDefault();$("drop").classList.add("over")};
 $("drop").ondragleave=()=>$("drop").classList.remove("over");
 $("drop").ondrop=e=>{e.preventDefault();$("drop").classList.remove("over");setFile(e.dataTransfer.files[0])};
@@ -94,7 +130,7 @@ async function openStream(){
  if(!stream)throw lastErr;
  const v=document.createElement("video");v.autoplay=true;v.muted=true;v.playsInline=true;v.setAttribute("playsinline","");
  v.srcObject=stream;v.style.cssText="max-width:100%;max-height:260px";
- $("drop").replaceChildren(v);
+ $("drop").replaceChildren(v);$("selrow").hidden=true;
  // follow what the browser actually gave us (laptops have no rear camera)
  const fm=stream.getVideoTracks()[0].getSettings().facingMode;if(fm)facing=fm;
  // preview un-mirrored by default so a letter held up to the camera reads the right way round
@@ -115,7 +151,7 @@ $("camBtn").onclick=async()=>{
  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
   $("err").textContent="Live camera needs https or localhost. Using the file picker instead.";$("cam").click();return}
  try{await openStream();
-  $("camBtn").textContent="Capture";showCamControls(true);$("go").disabled=true;$("err").textContent="";
+  current=null;$("camBtn").textContent="Capture";showCamControls(true);$("go").disabled=true;$("err").textContent="";hideResults();
  }catch(e){stream=null;showCamControls(false);
   $("err").textContent=(e&&e.name==="NotAllowedError"?"Camera permission was denied.":"Camera not available.")+" Choose a file instead.";
   $("cam").click()}};
@@ -126,6 +162,7 @@ $("flipBtn").onclick=async()=>{
 $("go").onclick=async()=>{
  $("go").disabled=true;$("go").textContent="Reading...";$("err").textContent="";
  try{const fd=new FormData();fd.append("image",current);
+  if(sel){fd.append("sel_x",sel.x);fd.append("sel_y",sel.y);fd.append("sel_w",sel.w);fd.append("sel_h",sel.h)}
   const r=await fetch("/predict",{method:"POST",body:fd});const d=await r.json();
   if(!r.ok)throw new Error(d.error||"Something went wrong.");
   const [t,...rest]=d.results;
@@ -133,6 +170,7 @@ $("go").onclick=async()=>{
   $("name").textContent=t.name+(t.ascii!==t.latin?" · plain: "+t.ascii:"");
   $("conf").textContent="Confidence "+Math.round(t.confidence*100)+"%"+(t.confidence<0.6?" (low: retake the photo)":"");
   $("alts").textContent="Other guesses: "+rest.map(x=>x.letter+" "+x.latin+" ("+x.name+") "+Math.round(x.confidence*100)+"%").join(", ");
+  $("how").textContent="Read: "+d.how;
   $("found").src=d.found;$("view").src=d.view;
   $("truth").value=t.id;$("saved").textContent="";$("saveBtn").disabled=false;
   $("result").style.display="flex";$("howread").hidden=false;$("savebox").hidden=false;

@@ -178,8 +178,8 @@ def load_image(src):
         img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
     return img
 
-def _prepare_bw(img_bgr):
-    """Image -> clean binary mask (letter = 255) before the main-letter selection."""
+def _binary(img_bgr):
+    """Image -> raw binary mask (ink = 255), before ruled lines, frames and clutter are removed."""
     if img_bgr is None or img_bgr.size == 0:
         raise ValueError("Image is empty or unreadable.")
     if img_bgr.ndim == 3:
@@ -202,9 +202,25 @@ def _prepare_bw(img_bgr):
     border = np.concatenate([bw[0], bw[-1], bw[:, 0], bw[:, -1]])
     if border.mean() > 127 and (bw > 0).mean() > 0.4:   # (a frame hugging the edge is not a dark background)
         bw = 255 - bw
+    return bw
+
+
+def _strip_all_lines(bw):
     bw = _strip_ruled_lines(bw)
-    bw = np.ascontiguousarray(_strip_ruled_lines(np.ascontiguousarray(bw.T)).T)
-    return _remove_edge_clutter(_remove_frames(bw))
+    return np.ascontiguousarray(_strip_ruled_lines(np.ascontiguousarray(bw.T)).T)
+
+
+def _prepare_bw(img_bgr):
+    """Image -> clean binary mask (letter = 255) before the main-letter selection."""
+    return _remove_edge_clutter(_remove_frames(_strip_all_lines(_binary(img_bgr))))
+
+
+def ruled_lines(img_bgr):
+    """Mask (255) of the notebook / ruled lines in an image (same size as the image)."""
+    bw = _binary(img_bgr)
+    lines = ((bw > 0) & (_strip_all_lines(bw) == 0)).astype(np.uint8) * 255
+    h, w = img_bgr.shape[:2]
+    return lines if lines.shape == (h, w) else cv2.resize(lines, (w, h), interpolation=cv2.INTER_NEAREST)
 
 
 def _ignore_margin(gray):

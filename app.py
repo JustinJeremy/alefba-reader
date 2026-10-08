@@ -69,12 +69,24 @@ def predict():
     if img is None:
         return jsonify(error="That file is not a readable image."), 400
     try:
-        res, (view, box) = predict_with_view(img)
+        select = _selection(request.form)
+        res, (view, box), how = predict_with_view(img, select=select)
     except ValueError as e:
         return jsonify(error=str(e)), 400
     return jsonify(results=[{"id": i, "letter": LETTERS[i], "latin": LOOKUP[i], "ascii": LOOKUP_ASCII[i],
                              "name": NAMES[i], "confidence": round(c, 3)} for i, c in res],
-                   found=_found_here(img, box), view=_cleaned(view))
+                   found=_found_here(img, box), view=_cleaned(view), how=how)
+
+
+def _selection(form):
+    """Optional box the user dragged on the photo: sel_x, sel_y, sel_w, sel_h in image pixels."""
+    keys = ("sel_x", "sel_y", "sel_w", "sel_h")
+    if not any(form.get(k) for k in keys):
+        return None
+    try:
+        return tuple(int(float(form.get(k, ""))) for k in keys)
+    except ValueError:
+        raise ValueError("The selected box is not valid. Clear the selection and drag again.")
 
 
 @app.post("/save")
