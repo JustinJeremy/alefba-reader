@@ -33,7 +33,12 @@ button:disabled{opacity:.5}
 #savebox select{font:inherit;padding:8px;border:1px solid var(--line);border-radius:4px;max-width:100%}
 #saved{color:#1b6b3a;min-height:1.4em}
 #result .big{font-size:5rem;line-height:1;direction:rtl}
-#latin{font-size:2.4rem;font-weight:bold}
+#latin{font-size:2.4rem;font-weight:bold;line-height:1.1}
+/* the chart spells eyn as ʿ and alef as -, which are tiny at text size: show them in a framed tile */
+#latin.symbol{display:inline-flex;align-items:center;justify-content:center;width:4.2rem;height:4.2rem;
+ font-size:3.6rem;line-height:1;border:2px solid var(--line);border-radius:10px;margin-bottom:6px;overflow:hidden}
+#latin.symbol.high{font-family:"Times New Roman",Times,serif}
+#latin.symbol.high span{display:inline-block;transform:translateY(.7em) scale(2.4)}   /* ʿ is tiny and drawn high up */
 .alts{color:#55607a;margin-top:6px}
 #err{color:#b3261e;min-height:1.4em}
 input[type=file]{display:none}
@@ -166,7 +171,9 @@ $("go").onclick=async()=>{
   const r=await fetch("/predict",{method:"POST",body:fd});const d=await r.json();
   if(!r.ok)throw new Error(d.error||"Something went wrong.");
   const [t,...rest]=d.results;
-  $("letter").textContent=t.letter;$("latin").textContent=t.latin;
+  $("letter").textContent=t.letter;
+  const sym=!/[a-z]/i.test(t.latin),span=document.createElement("span");span.textContent=t.latin;
+  $("latin").replaceChildren(span);$("latin").classList.toggle("symbol",sym);$("latin").classList.toggle("high",t.latin==="ʿ");
   $("name").textContent=t.name+(t.ascii!==t.latin?" · plain: "+t.ascii:"");
   $("conf").textContent="Confidence "+Math.round(t.confidence*100)+"%"+(t.confidence<0.6?" (low: retake the photo)":"");
   $("alts").textContent="Other guesses: "+rest.map(x=>x.letter+" "+x.latin+" ("+x.name+") "+Math.round(x.confidence*100)+"%").join(", ");
