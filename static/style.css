@@ -365,6 +365,8 @@ input[type=file] { display: none; }
   color: var(--maroon);
 }
 
+#how b { font-weight: 800; }
+
 #how {
   margin-top: 4px;
   padding: 3px 12px;
@@ -449,6 +451,19 @@ input[type=file] { display: none; }
 }
 
 #saved:empty { display: none; }
+
+
+/* ---------- laptops and PCs: two columns ----------
+   [ Your photo        ] [ Answer      ]
+   [ How it was read   ] [ Save photo  ]          (phones keep the single column) */
+
+@media (min-width: 960px) {
+  main {
+    width: min(1200px, 100%);
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
 
 
 /* ---------- small screens ---------- */

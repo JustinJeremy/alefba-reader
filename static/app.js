@@ -13,6 +13,7 @@ let sel = null;                // box dragged on the photo, in the photo's own p
 // ---------- showing and hiding parts of the page ----------
 
 function hideResults() {
+  $("placeholder").hidden = false;
   $("result").hidden = true;
   $("howread").hidden = true;
   $("savebox").hidden = true;
@@ -262,7 +263,9 @@ function showAnswer(d) {
     chip.textContent = x.letter + " " + x.latin + " (" + x.name + ") " + Math.round(x.confidence * 100) + "%";
     return chip;
   }));
-  $("how").textContent = "Read: " + d.how;
+  const label = document.createElement("b");
+  label.textContent = "Read:";
+  $("how").replaceChildren(label, " " + d.how);
 
   $("found").src = d.found;
   $("view").src = d.view;
@@ -270,6 +273,7 @@ function showAnswer(d) {
   $("saved").textContent = "";
   $("saveBtn").disabled = false;
 
+  $("placeholder").hidden = true;
   $("result").hidden = false;
   $("howread").hidden = false;
   $("savebox").hidden = false;

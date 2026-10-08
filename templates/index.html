@@ -49,9 +49,15 @@
       <span id="selhint">Tip: drag a box around one letter on the photo to read only that letter.</span>
       <button id="clearSel" type="button" hidden>Clear selection</button>
     </div>
+
+    <div id="err" role="alert"></div>
   </section>
 
-  <div id="err" role="alert"></div>
+  <!-- shown until a letter is read (on a wide screen it keeps the answer's place) -->
+  <section class="card" id="placeholder">
+    <h2>Answer</h2>
+    <p class="lead">Read a letter and its English spelling appears here.</p>
+  </section>
 
   <!-- 2. the answer -->
   <section class="card" id="result" aria-live="polite" hidden>
