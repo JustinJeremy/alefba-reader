@@ -20,14 +20,15 @@ def load_model(path=MODEL_PATH):
     return _model
 
 def _probs(img, strict=False, captions=False):
-    """-> (class probabilities, the cleaned SIZE x SIZE image the model looked at)"""
-    view = preprocess(img, strict, captions)
+    """-> (class probabilities, (cleaned SIZE x SIZE image the model looked at, letter box in img))"""
+    info = {}
+    view = preprocess(img, strict, captions, info)
     x = torch.tensor(view).unsqueeze(0).unsqueeze(0)
     with torch.no_grad():
-        return torch.softmax(load_model()(x), 1)[0], view
+        return torch.softmax(load_model()(x), 1)[0], (view, info["box"])
 
 def predict_with_view(img, topk=3):
-    """-> ([(class, confidence) x topk], the cleaned image the chosen answer came from)"""
+    """-> ([(class, confidence) x topk], (cleaned image, letter box)) for the crop the answer came from"""
     p, view = _probs(img)
     if caption_suspect(img):                # a caption (small Latin text) sits under the letter
         try:

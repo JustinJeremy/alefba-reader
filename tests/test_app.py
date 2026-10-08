@@ -60,6 +60,7 @@ def chart_bytes(name="01_be.jpg"):
 def test_predict_includes_what_the_model_saw(client):
     d = post(client, chart_bytes()).get_json()
     assert d["view"].startswith("data:image/png;base64,")
+    assert d["found"].startswith("data:image/jpg;base64,")
     assert d["results"][0]["id"] == 1
 
 

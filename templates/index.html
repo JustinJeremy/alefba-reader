@@ -17,10 +17,15 @@ button.alt,label.btn{background:#fff;color:var(--ink);border:1px solid var(--lin
 button:focus-visible,label.btn:focus-within,#drop:focus-visible{outline:3px solid #ffb703;outline-offset:2px}
 button:disabled{opacity:.5}
 #result{background:#fff;border:1px solid var(--line);border-radius:6px;padding:20px;display:none;gap:24px;align-items:center;flex-wrap:wrap}
-#seen{margin:0;text-align:center;color:#55607a;font-size:.85rem}
-#seen img{display:block;width:96px;height:96px;image-rendering:pixelated;border:1px solid var(--line);margin-bottom:4px}
+#howread{background:#fff;border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;gap:12px}
+#howread h2,#savebox h2{font-size:1.05rem;margin:0}
+.steps{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.steps figure{margin:0;display:grid;gap:6px;flex:1 1 200px;max-width:100%}
+.steps figcaption{color:#55607a;font-size:.9rem}
+.steps figcaption b{color:var(--ink)}
+#found{max-width:100%;max-height:220px;object-fit:contain;justify-self:start;border-radius:4px;border:1px solid var(--line)}
+#view{width:160px;height:160px;border-radius:10px;background:#000;box-shadow:0 1px 4px rgba(0,0,0,.25)}
 #savebox{background:#fff;border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;gap:10px}
-#savebox h2{font-size:1.05rem;margin:0}
 #savebox select{font:inherit;padding:8px;border:1px solid var(--line);border-radius:4px;max-width:100%}
 #saved{color:#1b6b3a;min-height:1.4em}
 #result .big{font-size:5rem;line-height:1;direction:rtl}
@@ -44,7 +49,17 @@ input[type=file]{display:none}
 <section id="result" aria-live="polite">
  <div class="big" id="letter"></div>
  <div><div id="latin"></div><div id="name" class="alts"></div><div id="conf"></div><div class="alts" id="alts"></div></div>
- <figure id="seen"><img id="view" alt="The cleaned-up image the model read">What the model saw</figure>
+</section>
+<section id="howread" hidden>
+ <h2>How the app read your photo</h2>
+ <div class="steps">
+  <figure><img id="found" alt="Your photo with a green box around the letter that was read">
+   <figcaption><b>1. Found the letter here</b><br>The green box is the part of your photo that was read.
+   If it is around the wrong thing, retake the photo closer to the letter.</figcaption></figure>
+  <figure><img id="view" alt="The cleaned-up black and white letter the model read">
+   <figcaption><b>2. Cleaned-up letter</b><br>Background, lines and shadows removed. This is exactly
+   what the model looked at. Dots should still be visible.</figcaption></figure>
+ </div>
 </section>
 <section id="savebox" hidden>
  <h2>Save as test photo</h2>
@@ -60,7 +75,7 @@ function showCamControls(on){$("mirrorBtn").hidden=!on;$("flipBtn").hidden=!on}
 function applyMirror(){const v=$("drop").querySelector("video");if(v)v.style.transform=mirrored?"scaleX(-1)":"none";
  $("mirrorBtn").textContent="Mirror preview: "+(mirrored?"on":"off");$("mirrorBtn").setAttribute("aria-pressed",mirrored)}
 function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$("camBtn").textContent="Take photo";showCamControls(false)}
-function setFile(f){if(!f)return;stopCam();current=f;$("err").textContent="";$("result").style.display="none";$("savebox").hidden=true;
+function setFile(f){if(!f)return;stopCam();current=f;$("err").textContent="";$("result").style.display="none";$("savebox").hidden=true;$("howread").hidden=true;
  const img=new Image();img.src=URL.createObjectURL(f);img.alt="Selected image";
  $("drop").replaceChildren(img);$("go").disabled=false;}
 $("file").onchange=e=>setFile(e.target.files[0]);
@@ -118,9 +133,9 @@ $("go").onclick=async()=>{
   $("name").textContent=t.name+(t.ascii!==t.latin?" · plain: "+t.ascii:"");
   $("conf").textContent="Confidence "+Math.round(t.confidence*100)+"%"+(t.confidence<0.6?" (low: retake the photo)":"");
   $("alts").textContent="Other guesses: "+rest.map(x=>x.letter+" "+x.latin+" ("+x.name+") "+Math.round(x.confidence*100)+"%").join(", ");
-  $("view").src=d.view;
+  $("found").src=d.found;$("view").src=d.view;
   $("truth").value=t.id;$("saved").textContent="";$("saveBtn").disabled=false;
-  $("result").style.display="flex";$("savebox").hidden=false;
+  $("result").style.display="flex";$("howread").hidden=false;$("savebox").hidden=false;
  }catch(e){$("err").textContent=e.message}
  $("go").textContent="Read letter";$("go").disabled=false;};
 $("saveBtn").onclick=async()=>{

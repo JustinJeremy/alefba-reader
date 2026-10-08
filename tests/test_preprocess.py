@@ -78,3 +78,37 @@ def test_load_image_reads_bytes_and_paths(tmp_path):
     cv2.imwrite(str(p), letter_image())
     assert load_image(str(p)).shape[:2] == (200, 200)
     assert load_image(p.read_bytes()).shape[:2] == (200, 200)
+
+
+def on_grey_paper(paper=150):
+    """The synthetic letter on mid-grey paper, like a dim webcam photo."""
+    img = letter_image(channels=1).astype(np.float32)
+    return np.where(img > 127, paper, 30).astype(np.uint8)
+
+
+def test_bright_line_on_photo_edge_is_ignored():
+    # webcam/screenshot crops can leave a near-white 2 px line on the edge; it used to turn the
+    # paper beside it into a big L-shaped 'letter'
+    img = on_grey_paper()
+    img[:, :2] = 250
+    img[:2, :] = 250
+    clean = preprocess(on_grey_paper())
+    assert np.abs(preprocess(img) - clean).mean() < 0.02
+
+
+def test_dark_desk_along_the_edges_is_ignored():
+    # paper photographed on a dark desk: the desk shows along two edges
+    img = on_grey_paper(paper=200)
+    img[:, :25] = 20
+    img[-25:, :] = 20
+    clean = preprocess(on_grey_paper(paper=200))
+    assert np.abs(preprocess(img) - clean).mean() < 0.02
+
+
+def test_letter_box_is_reported_in_input_coordinates():
+    big = cv2.resize(letter_image(), (2000, 2000), interpolation=cv2.INTER_NEAREST)   # shrunk inside
+    info = {}
+    preprocess(big, info=info)
+    x, y, w, h = info["box"]
+    # bar spans x 60..140, dot top at y 60, bar bottom at y 130 in the 200 px original (x10 here)
+    assert abs(x - 600) < 30 and abs(y - 600) < 30 and abs(w - 810) < 40 and abs(h - 710) < 40
