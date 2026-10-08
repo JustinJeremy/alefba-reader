@@ -7,7 +7,7 @@ Data:         1) python convert_dataset.py <folder with Random1..Random10>   (se
 Train:        python train.py            (creates persian_cnn.pt, results/metrics.txt, results/confusion_matrix.csv)
                  The Calibri font family is held out of training to measure accuracy on an unseen font.
 CLI:          python predict.py img1.jpg img2.jpg img3.jpg   [--ascii = no diacritics]
-Frontend:     python app.py   then open http://127.0.0.1:5000
+Frontend:     python app.py   then open http://127.0.0.1:5000   (page: templates/index.html, static/style.css, static/app.js)
               python app.py --host 0.0.0.0   to open it from a phone on the same Wi-Fi (http://<laptop-ip>:5000)
 Output:       romanisation follows the instructor alphabet chart (slide 3), e.g. q for qaf, w for vav
 Tests:        python -m pytest              (unit + app + CLI tests, about 30 s)
