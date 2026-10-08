@@ -12,3 +12,5 @@ Frontend:     python app.py   then open http://127.0.0.1:5000
 Output:       romanisation follows the instructor alphabet chart (slide 3), e.g. q for qaf, w for vav
 Tests:        python -m pytest              (unit + app + CLI tests, about 30 s)
 Score a set:  python score_testset.py rehearsal_set     (or hard_set; test-only images, never train on them)
+Real photos:  real_photos/ (TEST ONLY): random_test_photos/ from the app's "Save as test photo", plus JJ/ Ethan/ Mark/ Kaye/
+              name files 01_be_anything.jpg (see real_photos/README.txt), then: python score_testset.py real_photos

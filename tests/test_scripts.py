@@ -45,3 +45,21 @@ def test_score_testset_runs(capsys):
     score_testset.main(os.path.join(ROOT, "rehearsal_set"))
     out = capsys.readouterr().out
     assert "q95: 32/32 correct" in out
+
+
+def test_score_testset_reads_labels_from_file_names(tmp_path, capsys):
+    import shutil, score_testset
+    chart = os.path.join(ROOT, "rehearsal_set", "q95")
+    (tmp_path / "JJ").mkdir(); (tmp_path / "Ethan").mkdir()
+    shutil.copy(os.path.join(chart, "01_be.jpg"), tmp_path / "JJ" / "01_be_desk.jpg")
+    shutil.copy(os.path.join(chart, "23_qaf.jpg"), tmp_path / "JJ" / "23_qaf_1.jpg")
+    shutil.copy(os.path.join(chart, "23_qaf.jpg"), tmp_path / "JJ" / "05_jim_mislabelled.jpg")
+    shutil.copy(os.path.join(chart, "23_qaf.jpg"), tmp_path / "JJ" / "IMG_0001.jpg")
+    (tmp_path / "JJ" / "00_alef_blank.png").write_bytes(open(os.path.join(chart, "00_alef.jpg"), "rb").read()[:50])
+    score_testset.main(str(tmp_path))
+    out = capsys.readouterr().out
+    assert "Ethan: (no labelled photos yet)" in out
+    assert "JJ: 2/4 correct" in out
+    assert "05_jim_mislabelled.jpg" in out and "00_alef_blank.png" in out and "ERROR" in out
+    assert "skipped 1 file(s)" in out and "IMG_0001.jpg" in out
+    assert "TOTAL: 2/4" in out

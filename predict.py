@@ -20,28 +20,34 @@ def load_model(path=MODEL_PATH):
     return _model
 
 def _probs(img, strict=False, captions=False):
-    x = torch.tensor(preprocess(img, strict, captions)).unsqueeze(0).unsqueeze(0)
+    """-> (class probabilities, the cleaned SIZE x SIZE image the model looked at)"""
+    view = preprocess(img, strict, captions)
+    x = torch.tensor(view).unsqueeze(0).unsqueeze(0)
     with torch.no_grad():
-        return torch.softmax(load_model()(x), 1)[0]
+        return torch.softmax(load_model()(x), 1)[0], view
 
-def predict_array(img, topk=3):
-    p = _probs(img)
+def predict_with_view(img, topk=3):
+    """-> ([(class, confidence) x topk], the cleaned image the chosen answer came from)"""
+    p, view = _probs(img)
     if caption_suspect(img):                # a caption (small Latin text) sits under the letter
         try:
-            q = _probs(img, captions=True)  # same crop with the caption text removed
+            q, v = _probs(img, captions=True)  # same crop with the caption text removed
             if q.max() >= 0.5:
-                p = q
+                p, view = q, v
         except ValueError:
             pass
     if p.max() < STRICT_BELOW:              # not sure enough -> also try the stricter crop
         try:
-            q = _probs(img, strict=True)
+            q, v = _probs(img, strict=True)
             if q.max() > p.max():
-                p = q
+                p, view = q, v
         except ValueError:
             pass
     conf, idx = p.topk(topk)
-    return [(int(i), float(c)) for c, i in zip(conf, idx)]
+    return [(int(i), float(c)) for c, i in zip(conf, idx)], view
+
+def predict_array(img, topk=3):
+    return predict_with_view(img, topk)[0]
 
 def predict_file(path):
     img = load_image(path)

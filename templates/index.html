@@ -16,7 +16,13 @@ button,label.btn{font:inherit;background:var(--accent);color:#fff;border:0;borde
 button.alt,label.btn{background:#fff;color:var(--ink);border:1px solid var(--line)}
 button:focus-visible,label.btn:focus-within,#drop:focus-visible{outline:3px solid #ffb703;outline-offset:2px}
 button:disabled{opacity:.5}
-#result{background:#fff;border:1px solid var(--line);border-radius:6px;padding:20px;display:none;gap:24px;align-items:center}
+#result{background:#fff;border:1px solid var(--line);border-radius:6px;padding:20px;display:none;gap:24px;align-items:center;flex-wrap:wrap}
+#seen{margin:0;text-align:center;color:#55607a;font-size:.85rem}
+#seen img{display:block;width:96px;height:96px;image-rendering:pixelated;border:1px solid var(--line);margin-bottom:4px}
+#savebox{background:#fff;border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;gap:10px}
+#savebox h2{font-size:1.05rem;margin:0}
+#savebox select{font:inherit;padding:8px;border:1px solid var(--line);border-radius:4px;max-width:100%}
+#saved{color:#1b6b3a;min-height:1.4em}
 #result .big{font-size:5rem;line-height:1;direction:rtl}
 #latin{font-size:2.4rem;font-weight:bold}
 .alts{color:#55607a;margin-top:6px}
@@ -38,6 +44,14 @@ input[type=file]{display:none}
 <section id="result" aria-live="polite">
  <div class="big" id="letter"></div>
  <div><div id="latin"></div><div id="name" class="alts"></div><div id="conf"></div><div class="alts" id="alts"></div></div>
+ <figure id="seen"><img id="view" alt="The cleaned-up image the model read">What the model saw</figure>
+</section>
+<section id="savebox" hidden>
+ <h2>Save as test photo</h2>
+ <label for="truth">This letter really is:</label>
+ <select id="truth">{% for l in letters %}<option value="{{ l.id }}">{{ l.letter }}  {{ l.latin }}  ({{ l.name }})</option>{% endfor %}</select>
+ <div class="row"><button class="alt" id="saveBtn" type="button">Save to real_photos/random_test_photos</button></div>
+ <div id="saved" role="status"></div>
 </section>
 </main>
 <script>
@@ -46,7 +60,7 @@ function showCamControls(on){$("mirrorBtn").hidden=!on;$("flipBtn").hidden=!on}
 function applyMirror(){const v=$("drop").querySelector("video");if(v)v.style.transform=mirrored?"scaleX(-1)":"none";
  $("mirrorBtn").textContent="Mirror preview: "+(mirrored?"on":"off");$("mirrorBtn").setAttribute("aria-pressed",mirrored)}
 function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$("camBtn").textContent="Take photo";showCamControls(false)}
-function setFile(f){if(!f)return;stopCam();current=f;$("err").textContent="";$("result").style.display="none";
+function setFile(f){if(!f)return;stopCam();current=f;$("err").textContent="";$("result").style.display="none";$("savebox").hidden=true;
  const img=new Image();img.src=URL.createObjectURL(f);img.alt="Selected image";
  $("drop").replaceChildren(img);$("go").disabled=false;}
 $("file").onchange=e=>setFile(e.target.files[0]);
@@ -104,7 +118,16 @@ $("go").onclick=async()=>{
   $("name").textContent=t.name+(t.ascii!==t.latin?" · plain: "+t.ascii:"");
   $("conf").textContent="Confidence "+Math.round(t.confidence*100)+"%"+(t.confidence<0.6?" (low: retake the photo)":"");
   $("alts").textContent="Other guesses: "+rest.map(x=>x.letter+" "+x.latin+" ("+x.name+") "+Math.round(x.confidence*100)+"%").join(", ");
-  $("result").style.display="flex";
+  $("view").src=d.view;
+  $("truth").value=t.id;$("saved").textContent="";$("saveBtn").disabled=false;
+  $("result").style.display="flex";$("savebox").hidden=false;
  }catch(e){$("err").textContent=e.message}
  $("go").textContent="Read letter";$("go").disabled=false;};
+$("saveBtn").onclick=async()=>{
+ $("saveBtn").disabled=true;$("saved").textContent="Saving...";
+ try{const fd=new FormData();fd.append("image",current);fd.append("class_id",$("truth").value);
+  const r=await fetch("/save",{method:"POST",body:fd});const d=await r.json();
+  if(!r.ok)throw new Error(d.error||"Could not save.");
+  $("saved").textContent="Saved as "+d.folder+"/"+d.saved;
+ }catch(e){$("saved").textContent="";$("err").textContent=e.message;$("saveBtn").disabled=false}};
 </script></body></html>
