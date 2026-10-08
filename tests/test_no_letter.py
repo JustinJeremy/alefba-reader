@@ -111,3 +111,8 @@ def test_loop_letters_are_never_refused():
     for f in files:
         (pred, conf), *_ = predict_file(f)
         assert pred == int(os.path.basename(f)[:2]), f
+
+
+def test_phone_photo_of_a_person_is_refused():
+    with pytest.raises(ValueError, match="No (complete )?Persian letter found"):
+        predict_file(os.path.join(NO_LETTER_SET, "phone_person_lying.jpg"))

@@ -253,7 +253,10 @@ function showAnswer(d) {
   $("name").textContent = t.name + (t.ascii !== t.latin ? " · plain: " + t.ascii : "");
 
   const pct = Math.round(t.confidence * 100);
+  const unsure = t.confidence < 0.5;               // shown as a best guess, never as a sure answer
   $("conf").textContent = "Confidence " + pct + "%" + (t.confidence < 0.6 ? " (low: retake the photo)" : "");
+  $("unsure").hidden = !unsure;
+  $("result").classList.toggle("unsure", unsure);
   $("confbar").firstElementChild.style.width = pct + "%";
   $("confbar").classList.toggle("low", t.confidence < 0.6);
 

@@ -367,6 +367,18 @@ input[type=file] { display: none; }
 
 #how b { font-weight: 800; }
 
+#unsure {                       /* confidence under 50%: a best guess, not an answer */
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff4e0;
+  border: 1px solid #f0c27b;
+  color: #8a4b00;
+  font-size: .88rem;
+}
+
+#result.unsure .letter-tile { opacity: .55; }
+#result.unsure #latin { opacity: .6; }
+
 #how {
   margin-top: 4px;
   padding: 3px 12px;
