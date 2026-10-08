@@ -20,10 +20,30 @@ def file_label(i):
     return f"{i:02d}_" + NAMES[i].split(" ")[0] + ("2" if i == 30 else "")   # he (jimi) vs he2 (do-cheshm)
 
 
-def _png_data_url(view):
-    big = cv2.resize((view * 255).astype(np.uint8), (192, 192), interpolation=cv2.INTER_NEAREST)
-    ok, buf = cv2.imencode(".png", big)
-    return "data:image/png;base64," + base64.b64encode(buf.tobytes()).decode()
+def _data_url(img, ext=".png"):
+    ok, buf = cv2.imencode(ext, img)
+    return f"data:image/{ext[1:]};base64," + base64.b64encode(buf.tobytes()).decode()
+
+
+def _found_here(img, box, side=360):
+    """The user's photo, shrunk, with a green box around the part that was read."""
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    elif img.shape[2] == 4:
+        a = img[:, :, 3:4] / 255.0
+        img = (img[:, :, :3] * a + 255 * (1 - a)).astype(np.uint8)
+    k = min(1.0, side / max(img.shape[:2]))
+    small = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if k < 1 else img.copy()
+    x, y, w, h = (int(round(v * k)) for v in box)
+    pad = max(3, int(0.06 * max(w, h)))
+    t = max(2, round(max(small.shape[:2]) / 150))
+    cv2.rectangle(small, (x - pad, y - pad), (x + w + pad, y + h + pad), (60, 180, 60), t, cv2.LINE_AA)
+    return _data_url(small, ".jpg")
+
+
+def _cleaned(view, side=192):
+    """The model's input, enlarged smoothly so it reads as a letter rather than blocky pixels."""
+    return _data_url(cv2.resize((view * 255).astype(np.uint8), (side, side), interpolation=cv2.INTER_CUBIC))
 
 
 @app.get("/")
@@ -41,12 +61,12 @@ def predict():
     if img is None:
         return jsonify(error="That file is not a readable image."), 400
     try:
-        res, view = predict_with_view(img)
+        res, (view, box) = predict_with_view(img)
     except ValueError as e:
         return jsonify(error=str(e)), 400
     return jsonify(results=[{"id": i, "letter": LETTERS[i], "latin": LOOKUP[i], "ascii": LOOKUP_ASCII[i],
                              "name": NAMES[i], "confidence": round(c, 3)} for i, c in res],
-                   view=_png_data_url(view))
+                   found=_found_here(img, box), view=_cleaned(view))
 
 
 @app.post("/save")

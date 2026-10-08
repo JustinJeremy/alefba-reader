@@ -194,6 +194,7 @@ def _prepare_bw(img_bgr):
     if max(h, w) > 1024:
         s = 1024 / max(h, w)
         gray = cv2.resize(gray, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA)
+    gray = _ignore_margin(gray)
     gray = _flatten_lighting(gray)
     gray = cv2.medianBlur(gray, 3)
     bw = _binarize(gray)
@@ -203,7 +204,31 @@ def _prepare_bw(img_bgr):
         bw = 255 - bw
     bw = _strip_ruled_lines(bw)
     bw = np.ascontiguousarray(_strip_ruled_lines(np.ascontiguousarray(bw.T)).T)
-    return _remove_frames(bw)
+    return _remove_edge_clutter(_remove_frames(bw))
+
+
+def _ignore_margin(gray):
+    """Overwrite the outermost pixels with their inner neighbours. Screenshots, crops and webcams
+    often leave a 1-3 px white or black line on the edge; it fooled the shadow correction."""
+    h, w = gray.shape
+    m = max(2, int(0.01 * max(h, w)))
+    if min(h, w) <= 8 * m:
+        return gray
+    return cv2.copyMakeBorder(gray[m:h - m, m:w - m], m, m, m, m, cv2.BORDER_REPLICATE)
+
+
+def _remove_edge_clutter(bw):
+    """Erase shapes that run along a long stretch of the image edge (desk, paper edge, shadow,
+    part of a frame). A letter may touch the edge too, but only where a stroke ends."""
+    n, lab, _, _ = cv2.connectedComponentsWithStats(bw, connectivity=8)
+    if n <= 2:
+        return bw
+    edge = np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]])
+    contact = np.bincount(edge, minlength=n)
+    clutter = [i for i in range(1, n) if contact[i] > 0.15 * edge.size]
+    if not clutter or len(clutter) == n - 1:       # nothing to drop, or it would drop everything
+        return bw
+    return np.where(np.isin(lab, clutter), 0, bw).astype(np.uint8)
 
 
 def _caption_like(piece, body):
@@ -252,8 +277,9 @@ def _drop_captions(kept):
     return out
 
 
-def preprocess(img_bgr: np.ndarray, strict: bool = False, captions: bool = False) -> np.ndarray:
-    """BGR/gray image -> float32 SIZE x SIZE array, white letter on black, [0,1]."""
+def preprocess(img_bgr: np.ndarray, strict: bool = False, captions: bool = False, info: dict = None) -> np.ndarray:
+    """BGR/gray image -> float32 SIZE x SIZE array, white letter on black, [0,1].
+    If a dict is passed as info, info["box"] = (x, y, w, h) of the letter in the input image."""
     bw = _prepare_bw(img_bgr)
     bw = _keep_main_letter(bw, KEEP_STRICT if (strict or captions) else KEEP)
     if captions:                                   # strict crop, plus any caption text it still left
@@ -262,6 +288,9 @@ def preprocess(img_bgr: np.ndarray, strict: bool = False, captions: bool = False
     if pts is None:
         raise ValueError("No letter found (image looks blank).")
     x, y, w, h = cv2.boundingRect(pts)  # uses ALL foreground, so dots stay
+    if info is not None:                           # undo the shrink done for huge photos
+        k = max(img_bgr.shape[:2]) / max(bw.shape)
+        info["box"] = tuple(int(round(v * k)) for v in (x, y, w, h))
     crop = bw[y:y + h, x:x + w]
     side = max(w, h)
     pad = max(2, side // 8)
