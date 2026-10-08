@@ -5,19 +5,28 @@ Image 'aa (N).bmp' has class (N-1)//100, in the same order as LETTERS in common.
 import glob, os, re, sys
 import cv2
 
-src = sys.argv[1] if len(sys.argv) > 1 else "."
-files = glob.glob(os.path.join(src, "Random*", "*.bmp"))
-if not files:
-    raise SystemExit("No Random*/ *.bmp files found in: " + src)
-count = [0] * 32
-for p in files:
-    n = int(re.search(r"\((\d+)\)", os.path.basename(p)).group(1))
-    c = (n - 1) // 100
-    if not 0 <= c < 32:
-        continue
-    folder = os.path.join("data", "handwritten", str(c))
-    os.makedirs(folder, exist_ok=True)
-    tag = os.path.basename(os.path.dirname(p))
-    cv2.imwrite(os.path.join(folder, f"{tag}_{n}.png"), cv2.imread(p, cv2.IMREAD_GRAYSCALE))
-    count[c] += 1
-print("images per class:", count)
+
+def main(src):
+    files = glob.glob(os.path.join(src, "Random*", "*.bmp"))
+    if not files:
+        raise SystemExit("No Random*/ *.bmp files found in: " + src)
+    count, skipped = [0] * 32, []
+    for p in files:
+        m = re.search(r"\((\d+)\)", os.path.basename(p))
+        img = cv2.imread(p, cv2.IMREAD_GRAYSCALE) if m else None
+        c = (int(m.group(1)) - 1) // 100 if m else -1
+        if img is None or not 0 <= c < 32:
+            skipped.append(p)
+            continue
+        folder = os.path.join("data", "handwritten", str(c))
+        os.makedirs(folder, exist_ok=True)
+        tag = os.path.basename(os.path.dirname(p))
+        cv2.imwrite(os.path.join(folder, f"{tag}_{m.group(1)}.png"), img)
+        count[c] += 1
+    print("images per class:", count)
+    if skipped:
+        print(f"skipped {len(skipped)} files (no '(N)' in the name, N out of range, or unreadable)")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1] if len(sys.argv) > 1 else ".")

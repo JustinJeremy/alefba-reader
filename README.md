@@ -8,3 +8,5 @@ CLI:          python predict.py img1.jpg img2.jpg img3.jpg   [--ascii = no diacr
 Frontend:     python app.py   then open http://127.0.0.1:5000
               python app.py --host 0.0.0.0   to open it from a phone on the same Wi-Fi (http://<laptop-ip>:5000)
 Output:       romanisation follows the instructor alphabet chart (slide 3), e.g. q for qaf, w for vav
+Tests:        python -m pytest              (unit + app + CLI tests, about 30 s)
+Score a set:  python score_testset.py rehearsal_set     (or hard_set; test-only images, never train on them)

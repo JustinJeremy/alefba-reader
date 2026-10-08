@@ -1,12 +1,17 @@
 """CLI:  python predict.py a.jpg b.jpg c.jpg [--ascii]"""
-import argparse, sys, time
+import argparse, os, sys, time
 import torch
 from common import PersianCNN, preprocess, caption_suspect, load_image, LETTERS, LOOKUP, LOOKUP_ASCII, NAMES
 
+# next to this file, so the app works no matter which folder it is started from
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "persian_cnn.pt")
+
 _model = None
-def load_model(path="persian_cnn.pt"):
+def load_model(path=MODEL_PATH):
     global _model
     if _model is None:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Model file not found: {path}. Run 'python train.py' first.")
         m = PersianCNN(); m.load_state_dict(torch.load(path, map_location="cpu")); m.eval()
         _model = m
     return _model

@@ -8,3 +8,4 @@ __pycache__/
 # editor / local leftovers
 .vscode/
 BackUp*/
+.pytest_cache/

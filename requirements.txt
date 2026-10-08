@@ -1,7 +1,10 @@
-torch
-torchvision
-opencv-python
-numpy
-scikit-learn
-pillow
-flask
+# exact versions the model was trained and tested with (Python 3.14)
+torch==2.14.1
+torchvision==0.29.1
+opencv-python==5.0.0.93
+numpy==2.5.3
+scikit-learn==1.9.1
+pillow==12.3.0
+flask==3.0.3
+# tests:  python -m pytest
+pytest==9.1.1
