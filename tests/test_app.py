@@ -72,13 +72,24 @@ def test_home_page_lists_all_32_letters_for_saving(client):
 def test_save_writes_labelled_photo(client, tmp_path, monkeypatch):
     import app as app_module
     monkeypatch.setattr(app_module, "SAVE_DIR", str(tmp_path))
-    for _ in range(2):                              # two saves in the same second get different names
+    saved = []
+    for _ in range(2):                              # second photo of the same letter gets number 2
         r = client.post("/save", data={"image": (io.BytesIO(chart_bytes()), "x.jpg"), "class_id": "1"},
                         content_type="multipart/form-data")
         assert r.status_code == 200
-    names = sorted(os.listdir(tmp_path))
-    assert len(names) == 2 and all(n.startswith("01_be_") and n.endswith(".jpg") for n in names)
-    assert cv2.imread(str(tmp_path / names[0])) is not None
+        saved.append(r.get_json()["saved"])
+    assert saved == ["01_be_1.jpg", "01_be_2.jpg"]
+    assert sorted(os.listdir(tmp_path)) == saved
+    assert cv2.imread(str(tmp_path / saved[0])) is not None
+
+
+def test_numbering_continues_after_highest_and_is_per_letter(tmp_path):
+    from app import next_free_name
+    for n in ("01_be_1.jpg", "01_be_5.jpg", "01_be_desk.jpg", "02_pe_3.jpg", "01_be_7.png"):
+        (tmp_path / n).write_bytes(b"x")
+    assert next_free_name(str(tmp_path), 1) == "01_be_6.jpg"      # after 5; gaps and other names ignored
+    assert next_free_name(str(tmp_path), 2) == "02_pe_4.jpg"
+    assert next_free_name(str(tmp_path), 31) == "31_ye_1.jpg"     # first photo of a letter
 
 
 @pytest.mark.parametrize("cls", ["", "abc", "-1", "32"])

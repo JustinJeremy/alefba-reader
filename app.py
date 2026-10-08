@@ -1,13 +1,13 @@
 """Frontend server:  python app.py  ->  http://127.0.0.1:5000
 To open it from a phone on the same Wi-Fi:  python app.py --host 0.0.0.0  ->  http://<laptop-ip>:5000"""
-import argparse, base64, os, time
+import argparse, base64, os, re
 import cv2
 import numpy as np
 from flask import Flask, jsonify, render_template, request
 from common import LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, load_image
 from predict import predict_with_view, load_model
 
-# "Save as test photo" puts photos here, named <class>_<name>_<time>.jpg (TEST ONLY, never train on them)
+# "Save as test photo" puts photos here, named <class>_<name>_<n>.jpg (TEST ONLY, never train on them)
 SAVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "real_photos", "random_test_photos")
 
 app = Flask(__name__)
@@ -18,6 +18,14 @@ load_model()
 def file_label(i):
     """Class index -> the start of a test-photo file name, e.g. 1 -> '01_be'."""
     return f"{i:02d}_" + NAMES[i].split(" ")[0] + ("2" if i == 30 else "")   # he (jimi) vs he2 (do-cheshm)
+
+
+def next_free_name(folder, cls):
+    """Next numbered file name for this letter: 01_be_1.jpg, 01_be_2.jpg, ...
+    Continues after the highest number already in the folder, so nothing is overwritten."""
+    pattern = re.compile(re.escape(file_label(cls)) + r"_(\d+)\.jpg$", re.IGNORECASE)
+    taken = [int(m.group(1)) for f in os.listdir(folder) if (m := pattern.match(f))]
+    return f"{file_label(cls)}_{max(taken, default=0) + 1}.jpg"
 
 
 def _data_url(img, ext=".png"):
@@ -83,11 +91,7 @@ def save():
     if img is None:
         return jsonify(error="That file is not a readable image."), 400
     os.makedirs(SAVE_DIR, exist_ok=True)
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    name = f"{file_label(cls)}_{stamp}.jpg"
-    n = 1
-    while os.path.exists(os.path.join(SAVE_DIR, name)):        # two saves in the same second
-        n += 1; name = f"{file_label(cls)}_{stamp}-{n}.jpg"
+    name = next_free_name(SAVE_DIR, cls)
     if img.ndim == 3 and img.shape[2] == 4:                    # transparent PNG: put it on white paper
         a = img[:, :, 3:4] / 255.0
         img = (img[:, :, :3] * a + 255 * (1 - a)).astype(np.uint8)
