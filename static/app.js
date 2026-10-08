@@ -116,7 +116,7 @@ function setupSelect(img, box) {
     sel = { x: Math.round(Math.min(a[0], b[0]) * k), y: Math.round(Math.min(a[1], b[1]) * k),
             w: Math.round(w * k), h: Math.round(h * k) };
     $("clearSel").hidden = false;
-    $("selhint").textContent = "Only the green box will be read.";
+    $("selhint").textContent = "Only the box will be read.";
     hideResults();
   });
   img.addEventListener("click", e => e.stopPropagation());

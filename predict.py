@@ -1,8 +1,10 @@
 """CLI:  python predict.py a.jpg b.jpg c.jpg [--ascii]"""
 import argparse, os, sys, time
+import cv2
+import numpy as np
 import torch
 import marks
-from common import PersianCNN, preprocess, caption_suspect, load_image, LETTERS, LOOKUP, LOOKUP_ASCII, NAMES
+from common import PersianCNN, preprocess, caption_suspect, load_image, _binary, LETTERS, LOOKUP, LOOKUP_ASCII, NAMES
 
 # next to this file, so the app works no matter which folder it is started from
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "persian_cnn.pt")
@@ -10,7 +12,30 @@ MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "persian_c
 STRICT_BELOW = 0.99  # below this confidence the stricter crop (drops far-away marks such as a chart caption
                      # under the letter) is also tried; 0.99 fixed the last hard_set error, 0.9 did not
 
+# Refusing photos without a letter (measured on all test sets, see build_profile.py):
+MIN_CONTRAST = 12    # lightest minus darkest part of the (blurred) photo. Blank / dark / covered-camera
+                     # frames 3-11, faintest real letter 14, hard_set 20+, real photos 96+
+MAX_INK = 0.32       # share of the photo that looks like ink. Real photos up to 0.20 (noisiest synthetic
+                     # print 0.30); random noise 0.34+, grainy dark camera frames 0.47+
+MAX_DISTANCE = 0.65  # how unlike its letter's average a photo may look (0 = identical). Real photos up
+                     # to 0.58, random noise and dark camera grain about 0.55-0.8
+PROFILE_PATH = os.path.join(os.path.dirname(MODEL_PATH), "letter_profile.npz")
+
+NO_LETTER_BLANK = "No Persian letter found: the photo is too dark or blank. Check the camera, the lighting and the lens."
+NO_LETTER = "No Persian letter found in this photo. Make sure one letter is clearly visible and fills most of the photo."
+
 _model = None
+_centres = None
+
+
+def _letter_centres():
+    """Average feature vector of each letter (None if letter_profile.npz is missing)."""
+    global _centres
+    if _centres is None and os.path.isfile(PROFILE_PATH):
+        _centres = np.load(PROFILE_PATH)["centres"]
+    return _centres
+
+
 def load_model(path=MODEL_PATH):
     global _model
     if _model is None:
@@ -21,12 +46,29 @@ def load_model(path=MODEL_PATH):
     return _model
 
 def _probs(img, strict=False, captions=False):
-    """-> (class probabilities, (cleaned SIZE x SIZE image the model looked at, letter box in img))"""
+    """-> (class probabilities, (cleaned SIZE x SIZE image the model looked at, letter box in img, features))"""
     info = {}
     view = preprocess(img, strict, captions, info)
     x = torch.tensor(view).unsqueeze(0).unsqueeze(0)
+    m = load_model()
     with torch.no_grad():
-        return torch.softmax(load_model()(x), 1)[0], (view, info["box"])
+        f = m.head[:3](m.features(x))                 # the 256 numbers the answer is computed from
+        p = torch.softmax(m.head[3:](f), 1)[0]
+    return p, (view, info["box"], torch.nn.functional.normalize(f, dim=1)[0].numpy())
+
+
+def photo_contrast(img):
+    """Lightest minus darkest part of the photo, after blurring away camera grain."""
+    g = img if img.ndim == 2 else cv2.cvtColor(np.ascontiguousarray(img[:, :, :3]), cv2.COLOR_BGR2GRAY)
+    k = min(1.0, 800 / max(g.shape))
+    g = cv2.GaussianBlur(cv2.resize(g, None, fx=k, fy=k, interpolation=cv2.INTER_AREA), (5, 5), 0)
+    return float(np.percentile(g, 99.5) - np.percentile(g, 0.5))
+
+
+def letter_distance(cls, feats):
+    """How unlike the average of letter cls these features are (0 = identical), or 0 without a profile."""
+    centres = _letter_centres()
+    return 0.0 if centres is None else float(1 - feats @ centres[cls])
 
 MANY_LETTERS = ("This photo shows many letters. Mark the one to read (circle it, highlight it or point "
                 "an arrow at it), or drag a box around it.")
@@ -38,6 +80,12 @@ def predict_with_view(img, topk=3, select=None):
     -> ([(class, confidence) x topk], (cleaned image, letter box in img), how the letter was found)"""
     ox = oy = 0
     how = "whole photo"
+    if img is None or img.size == 0:
+        raise ValueError("Image is empty or unreadable.")
+    if photo_contrast(img) < MIN_CONTRAST:
+        raise ValueError(NO_LETTER_BLANK)
+    if (_binary(img) > 0).mean() > MAX_INK:          # speckle everywhere: noise, grain, a textured surface
+        raise ValueError(NO_LETTER)
     if select is not None:
         x, y, w, h = (int(v) for v in select)
         x, y = max(0, x), max(0, y)
@@ -78,8 +126,11 @@ def _read_one(img, topk):
                 p, view = q, v
         except ValueError:
             pass
+    view, box, feats = view
+    if letter_distance(int(p.argmax()), feats) > MAX_DISTANCE:
+        raise ValueError(NO_LETTER)
     conf, idx = p.topk(topk)
-    return [(int(i), float(c)) for c, i in zip(conf, idx)], view
+    return [(int(i), float(c)) for c, i in zip(conf, idx)], (view, box)
 
 def predict_array(img, topk=3):
     return predict_with_view(img, topk)[0]

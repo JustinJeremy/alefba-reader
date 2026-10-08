@@ -1,5 +1,5 @@
 """Train. Expects data/<source>/<class 0..31>/*.png (handwritten from convert_dataset.py, printed from prepare_data.py).
-Writes persian_cnn.pt plus results/metrics.txt and results/confusion_matrix.csv."""
+Writes persian_cnn.pt, letter_profile.npz, results/metrics.txt and results/confusion_matrix.csv."""
 import glob, os, random, time
 from multiprocessing import Pool
 import cv2, numpy as np, torch, torch.nn as nn, torch.nn.functional as F
@@ -153,6 +153,8 @@ def main():
 
     model.load_state_dict(torch.load(MODEL_PATH, map_location=dev))
     report(model, X, y, src, te, held, dev, time.time() - t0)
+    import build_profile                                  # what each letter looks like, for refusing non-letters
+    build_profile.build(model.cpu(), X, y)
 
 
 if __name__ == "__main__":

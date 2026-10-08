@@ -4,7 +4,7 @@ Setup:        pip install -r requirements.txt
 Data:         1) python convert_dataset.py <folder with Random1..Random10>   (see below), or Convert IFHCDB letter images to PNGs in data/handwritten/<0..31>/ (class order = LETTERS in common.py; skip digits)
               2) python prepare_data.py   renders the letters in the fonts in fonts/ plus the Arabic-script
                  fonts that come with Windows (read in place, not copied), as photo-like printed samples
-Train:        python train.py            (creates persian_cnn.pt, results/metrics.txt, results/confusion_matrix.csv)
+Train:        python train.py            (creates persian_cnn.pt, letter_profile.npz, results/metrics.txt, results/confusion_matrix.csv)
                  The Calibri font family is held out of training to measure accuracy on an unseen font.
 CLI:          python predict.py img1.jpg img2.jpg img3.jpg   [--ascii = no diacritics]
 Frontend:     python app.py   then open http://127.0.0.1:5000   (page: templates/index.html, static/style.css, static/app.js)
@@ -18,3 +18,5 @@ Marked sheets: a photo of a whole alphabet sheet works if one letter is circled 
               pointed at with an arrow, in any marker colour (marks.py). Without a mark the app asks for one,
               or you drag a box around the letter on the photo in the web app.
               Test set: python score_testset.py marked_set
+No letter:    blank / dark photos, noise and photos far from every letter are refused with "No Persian letter
+              found" (predict.py; letter_profile.npz holds each letter's average look: python build_profile.py)

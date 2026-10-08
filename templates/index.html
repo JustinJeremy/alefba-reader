@@ -9,18 +9,24 @@
 </head>
 
 <body>
-<main>
 
-  <!-- title -->
-  <header>
-    <h1>Persian letter reader <span lang="fa">الفبا</span></h1>
-    <p>Upload or photograph one Persian letter to get its English spelling. A whole alphabet sheet
-       works too if one letter is circled, highlighted or pointed at with an arrow, or if you drag
-       a box around it.</p>
-  </header>
+<!-- title banner -->
+<header class="banner">
+  <h1>Persian Letter Reader</h1>
+  <p class="fa-word">
+    <span lang="fa">الفبا</span>
+    <small>alefbâ &middot; &ldquo;alphabet&rdquo; in Persian</small>
+  </p>
+  <p class="intro">Upload or photograph one Persian letter to get its English spelling. A whole
+     alphabet sheet works too if one letter is circled, highlighted or pointed at with an arrow,
+     or if you drag a box around it.</p>
+</header>
+
+<main>
 
   <!-- 1. the photo -->
   <section class="card" id="photo">
+    <h2>Your photo</h2>
     <div id="drop" tabindex="0" role="button" aria-label="Choose an image">
       <span id="hint">
         <span class="big-hint" aria-hidden="true">&#8681;</span>
@@ -35,8 +41,9 @@
       <button id="flipBtn" type="button" hidden>Switch camera</button>
       <label class="btn">Choose file<input id="file" type="file" accept="image/*"></label>
       <input id="cam" type="file" accept="image/*" capture="environment">
-      <button id="go" class="primary" type="button" disabled>Read letter</button>
     </div>
+
+    <button id="go" class="primary" type="button" disabled>Read letter</button>
 
     <div class="row" id="selrow" hidden>
       <span id="selhint">Tip: drag a box around one letter on the photo to read only that letter.</span>
@@ -48,17 +55,16 @@
 
   <!-- 2. the answer -->
   <section class="card" id="result" aria-live="polite" hidden>
+    <h2>Answer</h2>
     <div class="letter-tile" id="letter" lang="fa"></div>
-    <div>
-      <div id="latin"></div>
-      <div id="name"></div>
-      <div class="conf">
-        <div class="bar" id="confbar"><span></span></div>
-        <span id="conf"></span>
-      </div>
-      <div id="alts"></div>
-      <div id="how"></div>
+    <div id="latin"></div>
+    <div id="name"></div>
+    <div class="conf">
+      <div class="bar" id="confbar"><span></span></div>
+      <span id="conf"></span>
     </div>
+    <div id="alts"></div>
+    <div id="how"></div>
   </section>
 
   <!-- 3. how the photo was read -->
@@ -66,10 +72,10 @@
     <h2>How the app read your photo</h2>
     <div class="steps">
       <figure>
-        <img id="found" alt="Your photo with a green box around the letter that was read">
+        <img id="found" alt="Your photo with a box around the letter that was read">
         <figcaption>
           <b>1. Found the letter here</b>
-          The green box is the part of your photo that was read. If it is around the wrong
+          The box is the part of your photo that was read. If it is around the wrong
           thing, drag a box around the right letter on your photo and read again.
         </figcaption>
       </figure>
@@ -93,10 +99,8 @@
       <option value="{{ l.id }}">{{ l.letter }}  {{ l.latin }}  ({{ l.name }})</option>
       {% endfor %}
     </select>
-    <div class="row">
-      <button id="saveBtn" type="button">Save to real_photos/random_test_photos</button>
-      <span id="saved" role="status"></span>
-    </div>
+    <button id="saveBtn" type="button">Save to real_photos/random_test_photos</button>
+    <div id="saved" role="status"></div>
   </section>
 
 </main>

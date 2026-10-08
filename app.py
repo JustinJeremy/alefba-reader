@@ -34,7 +34,7 @@ def _data_url(img, ext=".png"):
 
 
 def _found_here(img, box, side=360):
-    """The user's photo, shrunk, with a green box around the part that was read."""
+    """The user's photo, shrunk, with a maroon box around the part that was read."""
     if img.ndim == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     elif img.shape[2] == 4:
@@ -45,7 +45,7 @@ def _found_here(img, box, side=360):
     x, y, w, h = (int(round(v * k)) for v in box)
     pad = max(3, int(0.06 * max(w, h)))
     t = max(2, round(max(small.shape[:2]) / 150))
-    cv2.rectangle(small, (x - pad, y - pad), (x + w + pad, y + h + pad), (60, 180, 60), t, cv2.LINE_AA)
+    cv2.rectangle(small, (x - pad, y - pad), (x + w + pad, y + h + pad), (43, 30, 160), t, cv2.LINE_AA)   # maroon
     return _data_url(small, ".jpg")
 
 
