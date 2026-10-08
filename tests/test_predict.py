@@ -16,7 +16,13 @@ def chart(name):
 
 def test_model_has_expected_size():
     n = sum(p.numel() for p in PersianCNN().parameters())
-    assert 500_000 < n < 700_000                # ~0.6 M parameters, as stated in the paper
+    assert 700_000 < n < 850_000                # ~0.77 M parameters (64 px input, four conv blocks)
+
+
+def test_model_accepts_preprocessed_size():
+    import torch
+    from common import SIZE
+    assert PersianCNN()(torch.zeros(1, 1, SIZE, SIZE)).shape == (1, 32)
 
 
 def test_missing_model_file_gives_clear_error(tmp_path):

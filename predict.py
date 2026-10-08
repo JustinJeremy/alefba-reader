@@ -6,6 +6,9 @@ from common import PersianCNN, preprocess, caption_suspect, load_image, LETTERS,
 # next to this file, so the app works no matter which folder it is started from
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "persian_cnn.pt")
 
+STRICT_BELOW = 0.99  # below this confidence the stricter crop (drops far-away marks such as a chart caption
+                     # under the letter) is also tried; 0.99 fixed the last hard_set error, 0.9 did not
+
 _model = None
 def load_model(path=MODEL_PATH):
     global _model
@@ -30,7 +33,7 @@ def predict_array(img, topk=3):
                 p = q
         except ValueError:
             pass
-    if p.max() < 0.9:                       # still unsure -> try the stricter crop
+    if p.max() < STRICT_BELOW:              # not sure enough -> also try the stricter crop
         try:
             q = _probs(img, strict=True)
             if q.max() > p.max():
