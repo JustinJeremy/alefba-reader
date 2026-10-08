@@ -22,7 +22,7 @@ NAMES = ["alef", "be", "pe", "te", "se", "jim", "che", "he (jimi)", "khe", "dal"
          "gaf", "lam", "mim", "nun", "vav", "he (do-cheshm)", "ye"]
 assert len(LETTERS) == len(LOOKUP) == len(LOOKUP_ASCII) == len(NAMES) == 32
 
-SIZE = 32
+SIZE = 64          # input side in pixels (dots stay 3-4 px wide instead of 1-2)
 
 
 def _strip_ruled_lines(bw):
@@ -65,14 +65,14 @@ def _flatten_lighting(gray):
     """Even out shadows / gradients so one global threshold works. Does nothing on evenly lit images."""
     inv = np.median(gray) < 110                    # light letter on dark paper -> work on the inverse
     g = 255 - gray if inv else gray
-    _, m = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    paper = g[m > 0]                               # brightness of the paper itself
-    if paper.size < 50 or np.subtract(*np.percentile(paper, [90, 10])) < 45:
-        return gray                                # paper is evenly lit: leave untouched
     h, w = g.shape
     k = max(15, int(max(h, w) * 0.12)) | 1         # window must be wider than the strokes
     bg = cv2.dilate(g, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
-    bg = cv2.GaussianBlur(bg, (0, 0), k / 3)
+    bg = cv2.GaussianBlur(bg, (0, 0), k / 3)       # brightness of the paper around each pixel (ink ignored)
+    # Judge the lighting from this paper estimate, not from an Otsu split: with a shadow, Otsu
+    # separates lit paper from shaded paper and the lit half alone looks evenly lit.
+    if np.subtract(*np.percentile(bg, [95, 5])) < 25:
+        return gray                                # paper is evenly lit: leave untouched
     out = np.clip(g.astype(np.float32) / np.maximum(bg, 1) * 255, 0, 255).astype(np.uint8)
     return 255 - out if inv else out
 
@@ -253,7 +253,7 @@ def _drop_captions(kept):
 
 
 def preprocess(img_bgr: np.ndarray, strict: bool = False, captions: bool = False) -> np.ndarray:
-    """BGR/gray image -> float32 32x32 array, white letter on black, [0,1]."""
+    """BGR/gray image -> float32 SIZE x SIZE array, white letter on black, [0,1]."""
     bw = _prepare_bw(img_bgr)
     bw = _keep_main_letter(bw, KEEP_STRICT if (strict or captions) else KEEP)
     if captions:                                   # strict crop, plus any caption text it still left
@@ -278,7 +278,8 @@ class PersianCNN(nn.Module):
         def block(i, o):
             return nn.Sequential(nn.Conv2d(i, o, 3, padding=1), nn.BatchNorm2d(o),
                                  nn.ReLU(), nn.MaxPool2d(2))
-        self.features = nn.Sequential(block(1, 32), block(32, 64), block(64, 128))
+        # 64 -> 32 -> 16 -> 8 -> 4: four blocks, so the head sees 128 x 4 x 4 like the 32 px design
+        self.features = nn.Sequential(block(1, 32), block(32, 64), block(64, 128), block(128, 128))
         self.head = nn.Sequential(nn.Flatten(), nn.Linear(128 * 4 * 4, 256),
                                   nn.ReLU(), nn.Dropout(0.4), nn.Linear(256, n))
 
