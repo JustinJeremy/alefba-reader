@@ -53,31 +53,57 @@
     <div id="err" role="alert"></div>
   </section>
 
-  <!-- shown until a letter is read (on a wide screen it keeps the answer's place) -->
-  <section class="card" id="placeholder">
-    <h2>Answer</h2>
-    <p class="lead">Read a letter and its English spelling appears here.</p>
-  </section>
+  <!-- answer and save, kept together (on laptops: the right-hand column) -->
+  <div class="side">
 
-  <!-- 2. the answer -->
-  <section class="card" id="result" aria-live="polite" hidden>
-    <h2>Answer</h2>
-    <div class="letter-tile" id="letter" lang="fa"></div>
-    <div class="details">
-      <div id="latin"></div>
-      <div id="name"></div>
-      <div class="conf">
-        <div class="bar" id="confbar"><span></span></div>
-        <span id="conf"></span>
+    <!-- shown until a letter is read (on a wide screen it keeps the answer's place) -->
+    <section class="card" id="placeholder">
+      <h2>Answer</h2>
+      <p class="lead">Read a letter and its English spelling appears here.</p>
+    </section>
+
+    <!-- 2. the answer -->
+    <section class="card" id="result" aria-live="polite" hidden>
+      <h2>Answer</h2>
+      <div class="letter-tile" id="letter" lang="fa"></div>
+      <div class="details">
+        <div id="latin"></div>
+        <div id="name"></div>
+        <div class="conf">
+          <div class="bar" id="confbar"><span></span></div>
+          <span id="conf"></span>
+        </div>
+        <div id="alts"></div>
+        <div id="unsure" hidden>Not sure: this photo may not show a Persian letter.
+          Retake it closer, with one letter filling most of the photo.</div>
+        <div id="how"></div>
       </div>
-      <div id="alts"></div>
-      <div id="unsure" hidden>Not sure: this photo may not show a Persian letter.
-        Retake it closer, with one letter filling most of the photo.</div>
-      <div id="how"></div>
-    </div>
-  </section>
+    </section>
 
-  <!-- 3. how the photo was read -->
+    <!-- 3. keep the photo as a test image (right under the answer) -->
+    <section class="card" id="savebox" hidden>
+      <h2>Save as test photo</h2>
+      <label for="truth">This letter really is:</label>
+      <select id="truth">
+        {% for l in letters %}
+        <option value="{{ l.id }}">{{ l.letter }}  {{ l.latin }}  ({{ l.name }})</option>
+        {% endfor %}
+      </select>
+      <div class="save-row">
+        <button id="saveBtn" type="button">Save photo</button>
+        <label for="folder">to folder</label>
+        <select id="folder">
+          {% for f in folders %}
+          <option value="{{ f }}">real_photos/{{ f }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div id="saved" role="status"></div>
+    </section>
+
+  </div>
+
+  <!-- 4. how the photo was read -->
   <section class="card" id="howread" hidden>
     <h2>How the app read your photo</h2>
     <div class="steps">
@@ -98,27 +124,6 @@
         </figcaption>
       </figure>
     </div>
-  </section>
-
-  <!-- 4. keep the photo as a test image -->
-  <section class="card" id="savebox" hidden>
-    <h2>Save as test photo</h2>
-    <label for="truth">This letter really is:</label>
-    <select id="truth">
-      {% for l in letters %}
-      <option value="{{ l.id }}">{{ l.letter }}  {{ l.latin }}  ({{ l.name }})</option>
-      {% endfor %}
-    </select>
-    <div class="save-row">
-      <button id="saveBtn" type="button">Save photo</button>
-      <label for="folder">to folder</label>
-      <select id="folder">
-        {% for f in folders %}
-        <option value="{{ f }}">real_photos/{{ f }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div id="saved" role="status"></div>
   </section>
 
 </main>

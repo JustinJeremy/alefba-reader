@@ -465,16 +465,33 @@ input[type=file] { display: none; }
 #saved:empty { display: none; }
 
 
+/* answer + save: one box, so Save always sits right under the answer */
+.side {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+
 /* ---------- laptops and PCs: two columns ----------
    [ Your photo        ] [ Answer      ]
-   [ How it was read   ] [ Save photo  ]          (phones keep the single column) */
+   [ How it was read   ] [ Save photo  ]    (phones keep the single column:
+                                             photo, answer, save, how it was read) */
 
 @media (min-width: 960px) {
   main {
     width: min(1200px, 100%);
     grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;           /* "how it was read" starts right under the photo */
+    grid-template-areas:
+      "photo side"
+      "how   side";
     align-items: start;
   }
+
+  #photo { grid-area: photo; }
+  .side { grid-area: side; }
+  #howread { grid-area: how; }
 
   /* title on the left, lined up with the left edge of the cards below (phones keep it centred) */
   .banner {

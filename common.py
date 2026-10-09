@@ -26,16 +26,29 @@ NOT_A_LETTER = 32
 NUM_CLASSES = 33
 
 SIZE = 64          # input side in pixels (dots stay 3-4 px wide instead of 1-2)
+SMALL = 256        # photos smaller than this are enlarged before the clean-up (a 3 px blur would erase dots)
 
 
-def _strip_ruled_lines(bw):
-    """Erase long thin lines that cross the whole image (notebook rules), keep letter strokes."""
-    h, w = bw.shape
-    fg = bw > 0
+def _vertical_runs(fg):
+    """Length of the vertical run of ink through each pixel (a ruled line is only 1-5 px thick)."""
+    h = fg.shape[0]
     rows = np.arange(h)[:, None]
     last0 = np.maximum.accumulate(np.where(~fg, rows, -1), axis=0)
     next0 = np.minimum.accumulate(np.where(~fg, rows, h)[::-1], axis=0)[::-1]
-    vrun = next0 - last0 - 1                      # vertical run length through each pixel
+    return next0 - last0 - 1
+
+
+def _strip_ruled_lines(bw, gray=None):
+    """Erase long thin lines that cross the whole image (notebook rules), keep letter strokes."""
+    bw = _strip_straight_lines(bw)
+    return _strip_broken_lines(bw, gray)
+
+
+def _strip_straight_lines(bw):
+    """Lines that are perfectly straight and unbroken across (almost) the whole width."""
+    h, w = bw.shape
+    fg = bw > 0
+    vrun = _vertical_runs(fg)                     # vertical run length through each pixel
     near = cv2.dilate(bw, np.ones((3, 3), np.uint8)) > 0
     found = cv2.HoughLines(bw, 1, np.pi / 720, max(20, int(0.7 * w)),
                            min_theta=np.pi / 2 - 0.21, max_theta=np.pi / 2 + 0.21)
@@ -61,6 +74,98 @@ def _strip_ruled_lines(bw):
         band = np.zeros_like(bw)
         cv2.polylines(band, [np.stack([x_, y_], 1).astype(np.int32)], False, 255, int(med) + 4)
         out[(band > 0) & (vrun <= med + 3)] = 0     # remove line pixels only
+    return out
+
+
+def _ridge_across(gray, fit, t, ink):
+    """True when the grey image shows a thin dark line along the fitted line over most of the
+    width and near both edges: darker than the paper just above and below it. A ruled line runs
+    across the paper; a straight pen stroke (a letter's flat base) ends where the letter ends."""
+    h, w = gray.shape
+    g = gray.astype(np.int16)
+    xs = np.arange(w)
+    yc = np.round(np.polyval(fit, xs)).astype(int)
+    off = t + 3
+    ok = (yc - off >= 0) & (yc + off < h)
+    if ok.mean() < 0.8:
+        return False
+    x, y = xs[ok], yc[ok]
+    on = np.min(np.stack([g[np.clip(y + d, 0, h - 1), x] for d in (-2, -1, 0, 1, 2)]), axis=0)
+    side = np.minimum(g[y - off, x], g[y + off, x])          # paper just above and below
+    step = max(8, 0.1 * (np.median(gray) - ink))             # a tenth of the paper-to-pen contrast
+    dark = (side - on) >= step
+    paper = np.nonzero(side >= np.median(gray) - 4 * step)[0]   # columns with paper around the line (not desk)
+    if len(paper) < 0.5 * w:
+        return False
+    dark = dark[paper[0]:paper[-1] + 1]
+    e = max(2, int(0.15 * len(dark)))
+    return dark.mean() >= 0.6 and dark[:e].mean() >= 0.3 and dark[-e:].mean() >= 0.3
+
+
+def _strip_broken_lines(bw, gray=None):
+    """Ruled lines the straight-line search misses: slightly slanted or curved (paper not flat),
+    or cut into pieces where a letter is written over them. A piece counts as a ruled line when,
+    together with the pieces in line with it, it runs across the image (checked in the grey image
+    when given, because faint parts of a line may not have become ink). Only the thin line pixels
+    are erased, so strokes crossing the line stay; where the pen is clearly darker than the printed
+    line, pen ink lying ON the line stays too."""
+    h, w = bw.shape
+    fg = bw > 0
+    if w < 40 or h < 20 or not fg.any():
+        return bw
+    vrun = _vertical_runs(fg)
+    tmax = max(3, int(0.02 * h))                  # thickest ruled line looked for
+    thin = (fg & (vrun <= tmax)).astype(np.uint8)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(thin, connectivity=8)
+    cand = [i for i in range(1, n) if st[i][2] >= max(12, 0.1 * w) and st[i][2] >= 4 * st[i][3]]
+    out, used = bw.copy(), set()
+    xs_all = np.arange(w)
+    ink = float(np.percentile(gray[fg], 10)) if gray is not None else 0.0
+    for i in sorted(cand, key=lambda i: -st[i][2]):
+        if i in used:
+            continue
+        ys, xs = np.nonzero(lab == i)
+        a, b = np.polyfit(xs, ys, 1)
+        for _ in range(3):                         # refit on the straight part only (a letter may touch it)
+            keep = np.abs(ys - (a * xs + b)) <= 1.5
+            if keep.sum() < 10:
+                break
+            a, b = np.polyfit(xs[keep], ys[keep], 1)
+        keep = np.abs(ys - (a * xs + b)) <= 1.5
+        if abs(a) > 0.15 or len(np.unique(xs[keep])) < max(12, 0.1 * w):
+            continue                               # slanted or curved: a pen stroke, not a ruled line
+        group = [j for j in cand if j not in used and
+                 abs(st[j][1] + st[j][3] / 2 - (a * (st[j][0] + st[j][2] / 2) + b)) <= tmax + 2]
+        gm = np.isin(lab, group)
+        ys, xs = np.nonzero(gm)
+        near = np.abs(ys - (a * xs + b)) <= tmax + 2   # only the pixels along the line, not a touching letter
+        gm[ys[~near], xs[~near]] = False
+        ys, xs = ys[near], xs[near]
+        cols = np.unique(xs)
+        if gray is not None:
+            fit = np.polyfit(xs, ys, 1)
+            if not _ridge_across(gray, fit, tmax, ink):
+                continue
+        else:
+            if len(cols) < 0.5 * w or cols[0] > 0.12 * w or cols[-1] < 0.88 * w:
+                continue                           # does not run across the image
+            fit = np.polyfit(xs, ys, 2 if cols[-1] - cols[0] > 0.5 * w else 1)
+            if np.std(ys - np.polyval(fit, xs)) > 0.6 * tmax:
+                continue
+        used.update(group)
+        med = float(np.median(vrun[gm]))
+        band = np.zeros_like(bw)
+        pts = np.stack([xs_all, np.polyval(fit, xs_all)], 1).round().astype(np.int32)
+        cv2.polylines(band, [pts], False, 255, int(med) + 4)
+        erase = (band > 0) & fg & (vrun <= med + 3)
+        if gray is not None:                       # protect pen ink that lies on the line
+            g_line = float(np.median(gray[gm]))
+            pen = fg & (band == 0)
+            if pen.sum() > 20:
+                g_pen = float(np.percentile(gray[pen], 30))
+                if g_pen < g_line - 25:
+                    erase &= gray > (g_pen + g_line) / 2
+        out[erase] = 0
     return out
 
 
@@ -134,14 +239,23 @@ def _keep_main_letter(bw, cfg=None):
     def touches(i):
         x, y, w, h, _ = st[i]
         return x == 0 or y == 0 or x + w >= W or y + h >= H
-    body = max(range(1, n), key=lambda i: st[i][4] * (0.4 if touches(i) else 1.0))
+    inner = [i for i in range(1, n) if not touches(i) and st[i][4] >= max(30, 0.0003 * bw.size)]
+    blocks = set()
+    if inner:                                      # solid blocks at the edge (desk, finger, dark paper edge)
+        pen = _stroke_width(lab[st_box(st, max(inner, key=lambda i: st[i][4]))] > 0)
+        blocks = {i for i in range(1, n) if touches(i) and _stroke_width(lab[st_box(st, i)] == i) > 3 * max(pen, 2)}
+    if inner and max(H, W) >= 300:                 # big photo: a shape touching the edge would be refused
+        body = max(inner, key=lambda i: st[i][4])  # anyway (predict.py), so read the letter inside the photo
+    else:
+        body = max((i for i in range(1, n) if i not in blocks),
+                   key=lambda i: st[i][4] * (0.4 if touches(i) else 1.0))
     bx, by, bw_, bh, ba = st[body]
     size = max(bw_, bh)
     keep = np.zeros(bw.shape, bool)
     for i in range(1, n):
         x, y, w, h, a = st[i]
         if i != body:
-            if a < max(4, 0.01 * ba):                                  # noise speck
+            if i in blocks or a < max(4, 0.01 * ba):                   # desk / finger, or a noise speck
                 continue
             gx = max(bx - (x + w), x - (bx + bw_), 0)
             gy = max(by - (y + h), y - (by + bh), 0)
@@ -183,6 +297,11 @@ def load_image(src):
 
 def _binary(img_bgr):
     """Image -> raw binary mask (ink = 255), before ruled lines, frames and clutter are removed."""
+    return _binary_gray(img_bgr)[0]
+
+
+def _binary_gray(img_bgr):
+    """-> (raw binary mask, grey image of the same size where ink is dark)."""
     if img_bgr is None or img_bgr.size == 0:
         raise ValueError("Image is empty or unreadable.")
     if img_bgr.ndim == 3:
@@ -197,6 +316,9 @@ def _binary(img_bgr):
     if max(h, w) > 1024:
         s = 1024 / max(h, w)
         gray = cv2.resize(gray, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA)
+    elif max(h, w) < SMALL:                        # small photo: enlarge so the clean-up keeps thin strokes and dots
+        s = SMALL / max(h, w)
+        gray = cv2.resize(gray, (round(w * s), round(h * s)), interpolation=cv2.INTER_CUBIC)
     gray = _ignore_margin(gray)
     gray = _flatten_lighting(gray)
     gray = cv2.medianBlur(gray, 3)
@@ -205,23 +327,27 @@ def _binary(img_bgr):
     border = np.concatenate([bw[0], bw[-1], bw[:, 0], bw[:, -1]])
     if border.mean() > 127 and (bw > 0).mean() > 0.4:   # (a frame hugging the edge is not a dark background)
         bw = 255 - bw
-    return bw
+    if np.median(gray[bw > 0]) > np.median(gray[bw == 0]) if (bw > 0).any() and (bw == 0).any() else False:
+        gray = 255 - gray                           # light ink on dark paper: make ink the dark side
+    return bw, gray
 
 
-def _strip_all_lines(bw):
-    bw = _strip_ruled_lines(bw)
-    return np.ascontiguousarray(_strip_ruled_lines(np.ascontiguousarray(bw.T)).T)
+def _strip_all_lines(bw, gray=None):
+    bw = _strip_ruled_lines(bw, gray)
+    gt = None if gray is None else np.ascontiguousarray(gray.T)
+    return np.ascontiguousarray(_strip_ruled_lines(np.ascontiguousarray(bw.T), gt).T)
 
 
 def _prepare_bw(img_bgr):
     """Image -> clean binary mask (letter = 255) before the main-letter selection."""
-    return _remove_edge_clutter(_remove_frames(_strip_all_lines(_binary(img_bgr))))
+    bw, gray = _binary_gray(img_bgr)
+    return _remove_edge_clutter(_remove_frames(_strip_all_lines(bw, gray)))
 
 
 def ruled_lines(img_bgr):
     """Mask (255) of the notebook / ruled lines in an image (same size as the image)."""
-    bw = _binary(img_bgr)
-    lines = ((bw > 0) & (_strip_all_lines(bw) == 0)).astype(np.uint8) * 255
+    bw, gray = _binary_gray(img_bgr)
+    lines = ((bw > 0) & (_strip_all_lines(bw, gray) == 0)).astype(np.uint8) * 255
     h, w = img_bgr.shape[:2]
     return lines if lines.shape == (h, w) else cv2.resize(lines, (w, h), interpolation=cv2.INTER_NEAREST)
 
@@ -248,6 +374,19 @@ def _remove_edge_clutter(bw):
     if not clutter or len(clutter) == n - 1:       # nothing to drop, or it would drop everything
         return bw
     return np.where(np.isin(lab, clutter), 0, bw).astype(np.uint8)
+
+
+def st_box(st, i):
+    """Slice of component i's bounding box."""
+    x, y, w, h = (int(v) for v in st[i][:4])
+    return slice(y, y + h), slice(x, x + w)
+
+
+def _stroke_width(mask):
+    """Average stroke width of a shape, in pixels (2 x area / outline length)."""
+    m = mask.astype(np.uint8)
+    contours, _ = cv2.findContours(m, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    return 2 * float(m.sum()) / max(1.0, sum(cv2.arcLength(c, True) for c in contours))
 
 
 def _caption_like(piece, body):
