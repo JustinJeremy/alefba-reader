@@ -437,6 +437,14 @@ input[type=file] { display: none; }
 
 /* ---------- save as test photo ---------- */
 
+#truthMulti {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#truthMulti select { flex: 1 1 140px; }
+
 #savebox select {
   font: inherit;
   padding: 9px 12px;

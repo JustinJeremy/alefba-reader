@@ -91,7 +91,8 @@
     <!-- 3. keep the photo as a test image (right under the answer) -->
     <section class="card" id="savebox" hidden>
       <h2>Save as test photo</h2>
-      <label for="truth">This letter really is:</label>
+      <label for="truth" id="truthLabel">This letter really is:</label>
+      <div id="truthMulti" dir="rtl" hidden></div>
       <select id="truth">
         {% for l in letters %}
         <option value="{{ l.id }}">{{ l.letter }}  {{ l.latin }}  ({{ l.name }})</option>

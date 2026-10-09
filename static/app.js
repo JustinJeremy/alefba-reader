@@ -8,6 +8,8 @@ let stream = null;             // live camera stream, while the camera is on
 let mirrored = false;          // mirror the camera PREVIEW only (never the saved photo)
 let facing = "environment";    // which camera to ask for: "environment" (rear) or "user" (front)
 let sel = null;                // box dragged on the photo, in the photo's own pixels
+let several = false;           // the last answer held several letters (saved with one choice per letter)
+const SINGLE_FOLDER = "random_test_photos", MULTI_FOLDER = "multi_letter_photos";
 
 
 // ---------- showing and hiding parts of the page ----------
@@ -301,6 +303,7 @@ function showAnswer(d) {
   $("found").src = d.found;
   $("view").src = d.view;
   $("truth").value = t.id;
+  setSaveMode([]);
   $("saved").textContent = "";
   $("saveBtn").disabled = false;
 
@@ -343,11 +346,35 @@ function showWord(d) {
     return im;
   }));
 
+  setSaveMode(tops);
+  $("saved").textContent = "";
+  $("saveBtn").disabled = false;
+
   $("placeholder").hidden = true;
   $("result").hidden = true;
   $("word").hidden = false;
   $("howread").hidden = false;
-  $("savebox").hidden = true;          // a test photo holds one letter
+  $("savebox").hidden = false;
+}
+
+// Save card: one "really is" choice for a single letter, or one per letter (reading order, first on
+// the right) for a photo of several letters, which go to their own folder by default.
+function setSaveMode(tops) {
+  several = tops.length > 1;
+  $("truth").hidden = several;
+  $("truthMulti").hidden = !several;
+  $("truthLabel").textContent = several ? "These letters really are (right to left):" : "This letter really is:";
+  $("truthLabel").htmlFor = several ? "" : "truth";
+  $("truthMulti").replaceChildren(...tops.map((t, n) => {
+    const s = $("truth").cloneNode(true);
+    s.removeAttribute("id");
+    s.value = t.id;
+    s.setAttribute("aria-label", "Letter " + (n + 1));
+    return s;
+  }));
+  const f = $("folder").value;
+  if (several && f === SINGLE_FOLDER) $("folder").value = MULTI_FOLDER;
+  if (!several && f === MULTI_FOLDER) $("folder").value = SINGLE_FOLDER;
 }
 
 $("go").onclick = async () => {
@@ -378,11 +405,15 @@ $("saveBtn").onclick = async () => {
   try {
     const fd = new FormData();
     fd.append("image", current);
-    fd.append("class_id", $("truth").value);
+    if (several) {
+      fd.append("class_ids", [...$("truthMulti").querySelectorAll("select")].map(s => s.value).join(","));
+    } else {
+      fd.append("class_id", $("truth").value);
+    }
     fd.append("folder", $("folder").value);
     const d = await send("/save", fd);
     $("saved").textContent = "Saved as " + d.folder + "/" + d.saved
-      + ". You can save it again, to another folder or as another letter.";
+      + ". You can save it again, to another folder or as " + (several ? "other letters." : "another letter.");
   } catch (e) {
     $("saved").textContent = "";
     $("err").textContent = e.message;

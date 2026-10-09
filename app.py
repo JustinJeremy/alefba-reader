@@ -10,7 +10,8 @@ from predict import read_photo, load_model
 # "Save as test photo" puts photos in a folder inside real_photos/, named <class>_<name>_<n>.jpg
 # (TEST ONLY, never train on them). Any folder made inside real_photos/ also shows up in the list.
 PHOTOS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "real_photos")
-DEFAULT_FOLDERS = ["random_test_photos", "JJ", "Ethan", "Mark", "Kaye"]
+DEFAULT_FOLDERS = ["random_test_photos", "multi_letter_photos", "JJ", "Ethan", "Mark", "Kaye"]
+MULTI_FOLDER = "multi_letter_photos"      # chosen automatically for photos of several letters
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
@@ -31,11 +32,13 @@ def file_label(i):
 
 
 def next_free_name(folder, cls):
-    """Next numbered file name for this letter: 01_be_1.jpg, 01_be_2.jpg, ...
+    """Next numbered file name: 01_be_1.jpg, 01_be_2.jpg, ... for one letter (cls = 1), or
+    06-05_1.jpg, 06-05_2.jpg, ... for several letters in reading order (cls = [6, 5]).
     Continues after the highest number already in the folder, so nothing is overwritten."""
-    pattern = re.compile(re.escape(file_label(cls)) + r"_(\d+)\.jpg$", re.IGNORECASE)
+    label = file_label(cls) if isinstance(cls, int) else "-".join(f"{c:02d}" for c in cls)
+    pattern = re.compile(re.escape(label) + r"_(\d+)\.jpg$", re.IGNORECASE)
     taken = [int(m.group(1)) for f in os.listdir(folder) if (m := pattern.match(f))]
-    return f"{file_label(cls)}_{max(taken, default=0) + 1}.jpg"
+    return f"{label}_{max(taken, default=0) + 1}.jpg"
 
 
 def save_folders():
@@ -128,14 +131,21 @@ def _selection(form):
 
 @app.post("/save")
 def save():
-    """Keep a photo as a labelled test image: the person says which letter it really is."""
+    """Keep a photo as a labelled test image: the person says which letter it really is
+    (class_id), or, for a photo of several letters, which letters they are in reading order
+    (class_ids, e.g. "6,5")."""
     f = request.files.get("image")
     try:
-        cls = int(request.form.get("class_id", ""))
+        if request.form.get("class_ids"):
+            cls = [int(v) for v in request.form["class_ids"].split(",")]
+            ok = 2 <= len(cls) <= 20 and all(0 <= c < 32 for c in cls)
+        else:
+            cls = int(request.form.get("class_id", ""))
+            ok = 0 <= cls < 32
     except ValueError:
-        cls = -1
-    if not f or not 0 <= cls < 32:
-        return jsonify(error="Need an image and a letter (class_id 0-31)."), 400
+        ok = False
+    if not f or not ok:
+        return jsonify(error="Need an image and its letter(s) (class ids 0-31)."), 400
     folder = request.form.get("folder", DEFAULT_FOLDERS[0])
     if folder not in save_folders():                           # only listed folders: no writing elsewhere
         return jsonify(error="Unknown folder. Choose one from the list."), 400

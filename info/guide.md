@@ -158,7 +158,8 @@ was trained on no longer tells you anything as a test.
 ### `real_photos/`: photos of one letter
 
 - **Easiest:** read the photo in the web app, choose the right letter and the folder, click **Save photo**.
-  The name is done for you.
+  The name is done for you. A photo of **several letters** gets one choice per letter (right to left)
+  and goes to `real_photos/multi_letter_photos/` by default, named e.g. `06-05_1.jpg` (چ ج).
 - **By hand:** copy the photo into one of the subfolders (`random_test_photos/`, `JJ/`, `Ethan/`,
   `Mark/`, `Kaye/`, or a new folder you make) and name it
   **`<number>_<name>_<anything>.jpg`**, e.g. `01_be_3.jpg`, `21_gheyn_phone.jpg`.
@@ -226,7 +227,7 @@ After any change: **restart the app**, press **Ctrl+F5**, and run **`python -m p
 | I want to change… | File | What to edit |
 |---|---|---|
 | A letter's English spelling | `common.py` | `LOOKUP` (chart spelling), `LOOKUP_ASCII` (plain), `NAMES` |
-| Save folders in the dropdown | `app.py` | `DEFAULT_FOLDERS`, or just create a folder inside `real_photos/` |
+| Save folders in the dropdown | `app.py` | `DEFAULT_FOLDERS` (`MULTI_FOLDER` for photos of several letters), or just create a folder inside `real_photos/` |
 | Maximum upload size (20 MB) | `app.py` | `MAX_CONTENT_LENGTH` |
 | "Low confidence" warning (60%) | `static/app.js` | `t.confidence < 0.6` (2 places) |
 | "Not sure" note (50%) | `static/app.js` | `t.confidence < 0.5` |
