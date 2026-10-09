@@ -1,12 +1,13 @@
-"""Train. Expects data/<source>/<class 0..31>/*.png (handwritten from convert_dataset.py, printed from prepare_data.py).
+"""Train. Expects data/<source>/<class 0..31>/*.png (handwritten from convert_dataset.py; printed, negative and
+effects from prepare_data.py) and the team's own letters in member_handwriting/<member>/<NN>_<name>_*.jpg.
 Writes persian_cnn.pt, letter_profile.npz, results/metrics.txt and results/confusion_matrix.csv."""
-import glob, os, random, time
+import glob, os, re, random, time
 from multiprocessing import Pool
 import cv2, numpy as np, torch, torch.nn as nn, torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 import torchvision.transforms.v2 as T
-from common import PersianCNN, preprocess, NAMES, SIZE, NOT_A_LETTER, NUM_CLASSES
+from common import PersianCNN, preprocess, load_image, NAMES, SIZE, NOT_A_LETTER, NUM_CLASSES
 
 EPOCHS = 30
 BATCH = 128
@@ -14,6 +15,11 @@ MODEL_PATH = "persian_cnn.pt"
 RESULTS = "results"
 # one whole font family is never trained on: its score shows how well the model reads an unseen font
 HELDOUT_FONTS = ("calibri", "calibrib", "calibril")
+# the team's handwriting (cut from the clear alphabet sheets): only ~125 photos, so each one is shown
+# MEMBER_REPEAT times per epoch (with the usual random changes). Training only: the team's earlier sheets
+# in real_photos/ are the test for these writers.
+MEMBERS = "member_handwriting"
+MEMBER_REPEAT = 15
 
 aug = T.Compose([T.RandomAffine(8, translate=(.1, .1), scale=(.9, 1.1))])
 blur = T.GaussianBlur(3, sigma=(0.1, 1.0))
@@ -21,7 +27,7 @@ blur = T.GaussianBlur(3, sigma=(0.1, 1.0))
 
 def _prep(path):
     try:
-        return preprocess(cv2.imread(path, cv2.IMREAD_UNCHANGED)), None
+        return preprocess(load_image(path)), None
     except (ValueError, cv2.error) as e:
         return None, f"{path}: {e}"
 
@@ -37,6 +43,11 @@ def load_data():
     items = [(p, c, source) for source in ("handwritten", "printed")
              for c in range(32) for p in sorted(glob.glob(f"data/{source}/{c}/*"))]
     items += [(p, NOT_A_LETTER, "negative") for p in sorted(glob.glob(f"data/negative/{NOT_A_LETTER}/*"))]
+    items += [(p, c, "effects") for c in range(NUM_CLASSES) for p in sorted(glob.glob(f"data/effects/{c}/*"))]
+    for p in sorted(glob.glob(os.path.join(MEMBERS, "*", "*.jpg"))):
+        m = re.match(r"(\d{2})_", os.path.basename(p))
+        if m and int(m.group(1)) < 32:
+            items.append((p, int(m.group(1)), "members"))
     with Pool(os.cpu_count()) as pool:
         out = pool.map(_prep, [p for p, _, _ in items], chunksize=64)
     X, y, src, font, skipped = [], [], [], [], []
@@ -83,12 +94,15 @@ def evaluate(model, X, y, ids, dev):
 
 
 def split(y, src, font):
-    """Held-out font -> its own test set; everything else stratified 80/10/10 per letter and source."""
+    """Held-out font -> its own test set; the team's letters -> training only (repeated);
+    everything else stratified 80/10/10 per letter and source."""
     held = np.isin(font, HELDOUT_FONTS)
-    idx = np.where(~held)[0]
-    strata = y[idx] * 2 + (src[idx] == "printed")
-    tr, rest = train_test_split(idx, test_size=0.2, stratify=strata, random_state=0)
-    va, te = train_test_split(rest, test_size=0.5, stratify=y[rest] * 2 + (src[rest] == "printed"), random_state=0)
+    members = src == "members"
+    idx = np.where(~held & ~members)[0]
+    kind = lambda i: (src[i] == "printed") * 1 + (src[i] == "effects") * 2
+    tr, rest = train_test_split(idx, test_size=0.2, stratify=y[idx] * 3 + kind(idx), random_state=0)
+    va, te = train_test_split(rest, test_size=0.5, stratify=y[rest] * 3 + kind(rest), random_state=0)
+    tr = np.concatenate([tr, np.repeat(np.where(members)[0], MEMBER_REPEAT)])
     return tr, va, te, np.where(held)[0]
 
 
@@ -99,7 +113,7 @@ def report(model, X, y, src, te, held, dev, seconds):
              f"train/val/test images: see split in train.py; test = {len(te)}, held-out font test = {len(held)}",
              "",
              f"TEST accuracy (all):        {accuracy_score(y[te], p):.4f}"]
-    for s in ("handwritten", "printed", "negative"):
+    for s in ("handwritten", "printed", "negative", "effects"):
         m = src[te] == s
         if m.any():
             lines.append(f"TEST accuracy ({s}):{' ' * (12 - len(s))}{accuracy_score(y[te][m], p[m]):.4f}  (n={m.sum()})")

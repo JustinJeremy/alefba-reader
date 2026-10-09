@@ -5,16 +5,25 @@ import cv2
 import numpy as np
 from flask import Flask, jsonify, render_template, request
 from common import LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, load_image
-from predict import predict_with_view, load_model
+from predict import read_photo, load_model
 
 # "Save as test photo" puts photos in a folder inside real_photos/, named <class>_<name>_<n>.jpg
 # (TEST ONLY, never train on them). Any folder made inside real_photos/ also shows up in the list.
 PHOTOS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "real_photos")
-DEFAULT_FOLDERS = ["random_test_photos", "JJ", "Ethan", "Mark", "Kaye"]
+DEFAULT_FOLDERS = ["random_test_photos", "multi_letter_photos", "JJ", "Ethan", "Mark", "Kaye"]
+MULTI_FOLDER = "multi_letter_photos"      # chosen automatically for photos of several letters
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 load_model()
+
+
+@app.errorhandler(413)
+def too_big(_):
+    """A photo over the upload limit: answer with a message the page can show (not an HTML page)."""
+    mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
+    return jsonify(error=f"This photo is too big (over {mb} MB). Take it again at a lower resolution "
+                         "or send a smaller copy."), 413
 
 
 def file_label(i):
@@ -23,11 +32,13 @@ def file_label(i):
 
 
 def next_free_name(folder, cls):
-    """Next numbered file name for this letter: 01_be_1.jpg, 01_be_2.jpg, ...
+    """Next numbered file name: 01_be_1.jpg, 01_be_2.jpg, ... for one letter (cls = 1), or
+    06-05_1.jpg, 06-05_2.jpg, ... for several letters in reading order (cls = [6, 5]).
     Continues after the highest number already in the folder, so nothing is overwritten."""
-    pattern = re.compile(re.escape(file_label(cls)) + r"_(\d+)\.jpg$", re.IGNORECASE)
+    label = file_label(cls) if isinstance(cls, int) else "-".join(f"{c:02d}" for c in cls)
+    pattern = re.compile(re.escape(label) + r"_(\d+)\.jpg$", re.IGNORECASE)
     taken = [int(m.group(1)) for f in os.listdir(folder) if (m := pattern.match(f))]
-    return f"{file_label(cls)}_{max(taken, default=0) + 1}.jpg"
+    return f"{label}_{max(taken, default=0) + 1}.jpg"
 
 
 def save_folders():
@@ -42,8 +53,9 @@ def _data_url(img, ext=".png"):
     return f"data:image/{ext[1:]};base64," + base64.b64encode(buf.tobytes()).decode()
 
 
-def _found_here(img, box, side=360):
-    """The user's photo, shrunk, with a maroon box around the part that was read."""
+def _found_here(img, boxes, side=360):
+    """The user's photo, shrunk, with a green box around each part that was read (numbered when
+    there are several letters, in reading order)."""
     if img.ndim == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     elif img.shape[2] == 4:
@@ -51,16 +63,29 @@ def _found_here(img, box, side=360):
         img = (img[:, :, :3] * a + 255 * (1 - a)).astype(np.uint8)
     k = min(1.0, side / max(img.shape[:2]))
     small = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if k < 1 else img.copy()
-    x, y, w, h = (int(round(v * k)) for v in box)
-    pad = max(3, int(0.06 * max(w, h)))
     t = max(2, round(max(small.shape[:2]) / 150))
-    cv2.rectangle(small, (x - pad, y - pad), (x + w + pad, y + h + pad), (43, 30, 160), t, cv2.LINE_AA)   # maroon
+    for n, box in enumerate(boxes, 1):
+        x, y, w, h = (int(round(v * k)) for v in box)
+        pad = max(3, int(0.06 * max(w, h)))
+        cv2.rectangle(small, (x - pad, y - pad), (x + w + pad, y + h + pad), (63, 95, 31), t, cv2.LINE_AA)    # forest green (BGR)
+        if len(boxes) > 1:
+            org = (x - pad, max(14, y - pad - 4))
+            cv2.putText(small, str(n), org, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 3, cv2.LINE_AA)
+            cv2.putText(small, str(n), org, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (63, 95, 31), 1, cv2.LINE_AA)
     return _data_url(small, ".jpg")
 
 
 def _cleaned(view, side=192):
     """The model's input, enlarged smoothly so it reads as a letter rather than blocky pixels."""
     return _data_url(cv2.resize((view * 255).astype(np.uint8), (side, side), interpolation=cv2.INTER_CUBIC))
+
+
+@app.errorhandler(500)
+def crashed(e):
+    """Any unexpected error: the details go to the terminal, the page gets a short message."""
+    app.logger.exception(getattr(e, "original_exception", e))
+    return jsonify(error="The app hit an unexpected problem with this photo (details are in the terminal "
+                         "running app.py). Try another photo, or drag a box around one letter."), 500
 
 
 @app.get("/")
@@ -79,12 +104,18 @@ def predict():
         return jsonify(error="That file is not a readable image."), 400
     try:
         select = _selection(request.form)
-        res, (view, box), how = predict_with_view(img, select=select)
+        letters, how = read_photo(img, select=select)
     except ValueError as e:
         return jsonify(error=str(e)), 400
-    return jsonify(results=[{"id": i, "letter": LETTERS[i], "latin": LOOKUP[i], "ascii": LOOKUP_ASCII[i],
-                             "name": NAMES[i], "confidence": round(c, 3)} for i, c in res],
-                   found=_found_here(img, box), view=_cleaned(view), how=how)
+    out = [{"results": _results(res), "view": _cleaned(view)} for res, (view, _) in letters]
+    # results / view: the (first) letter, as before; letters: every letter, in reading order (right to left)
+    return jsonify(results=out[0]["results"], view=out[0]["view"], letters=out,
+                   found=_found_here(img, [box for _, (_, box) in letters]), how=how)
+
+
+def _results(res):
+    return [{"id": i, "letter": LETTERS[i], "latin": LOOKUP[i], "ascii": LOOKUP_ASCII[i],
+             "name": NAMES[i], "confidence": round(c, 3)} for i, c in res]
 
 
 def _selection(form):
@@ -100,14 +131,21 @@ def _selection(form):
 
 @app.post("/save")
 def save():
-    """Keep a photo as a labelled test image: the person says which letter it really is."""
+    """Keep a photo as a labelled test image: the person says which letter it really is
+    (class_id), or, for a photo of several letters, which letters they are in reading order
+    (class_ids, e.g. "6,5")."""
     f = request.files.get("image")
     try:
-        cls = int(request.form.get("class_id", ""))
+        if request.form.get("class_ids"):
+            cls = [int(v) for v in request.form["class_ids"].split(",")]
+            ok = 2 <= len(cls) <= 20 and all(0 <= c < 32 for c in cls)
+        else:
+            cls = int(request.form.get("class_id", ""))
+            ok = 0 <= cls < 32
     except ValueError:
-        cls = -1
-    if not f or not 0 <= cls < 32:
-        return jsonify(error="Need an image and a letter (class_id 0-31)."), 400
+        ok = False
+    if not f or not ok:
+        return jsonify(error="Need an image and its letter(s) (class ids 0-31)."), 400
     folder = request.form.get("folder", DEFAULT_FOLDERS[0])
     if folder not in save_folders():                           # only listed folders: no writing elsewhere
         return jsonify(error="Unknown folder. Choose one from the list."), 400

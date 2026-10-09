@@ -1,51 +1,52 @@
-input 64x64, 773,985 parameters, trained 30 epochs in 85.5 min
-train/val/test images: see split in train.py; test = 5106, held-out font test = 1206
+input 64x64, 773,985 parameters, trained 30 epochs in 133.1 min
+train/val/test images: see split in train.py; test = 5871, held-out font test = 1206
 
-TEST accuracy (all):        0.9812
-TEST accuracy (handwritten): 0.9791  (n=3200)
-TEST accuracy (printed):     0.9817  (n=1367)
-TEST accuracy (negative):    0.9926  (n=539)
-UNSEEN FONT accuracy (calibri, calibrib, calibril): 0.9668  (n=1206)
-model inference time: 2.14 ms per image (batch of 1, cpu)
+TEST accuracy (all):        0.9865
+TEST accuracy (handwritten): 0.9884  (n=3200)
+TEST accuracy (printed):     0.9789  (n=1373)
+TEST accuracy (negative):    0.9907  (n=539)
+TEST accuracy (effects):     0.9895  (n=759)
+UNSEEN FONT accuracy (calibri, calibrib, calibril): 0.9685  (n=1206)
+model inference time: 2.97 ms per image (batch of 1, cpu)
 
-real letters wrongly refused as 'not a letter': 0.0011  | non-letters caught: 0.9926
+real letters wrongly refused as 'not a letter': 0.0011  | non-letters caught: 0.9880
 Per-letter results on the test set:
                 precision    recall  f1-score   support
 
-          alef      0.986     1.000     0.993       140
-            be      0.965     0.972     0.968       141
-            pe      0.965     0.979     0.972       141
-            te      0.933     0.986     0.959       141
-            se      0.992     0.915     0.952       141
-           jim      0.957     0.943     0.950       141
-           che      0.971     0.950     0.961       141
-     he (jimi)      0.939     0.979     0.958       141
-           khe      1.000     0.979     0.989       141
-           dal      0.972     0.986     0.979       140
-           zal      0.986     0.986     0.986       141
-            re      0.952     0.986     0.969       141
-            ze      0.957     0.957     0.957       141
-           zhe      0.978     0.965     0.971       141
-           sin      1.000     0.986     0.993       140
-          shin      0.993     1.000     0.996       141
-           sad      0.993     1.000     0.996       141
-           zad      1.000     0.979     0.989       141
-            ta      0.979     1.000     0.989       141
-            za      1.000     0.979     0.989       140
-           eyn      0.972     1.000     0.986       141
-         gheyn      0.993     0.979     0.986       141
-            fe      0.986     1.000     0.993       141
-           qaf      1.000     0.993     0.996       141
-           kaf      0.952     0.988     0.970       161
-           gaf      0.993     0.972     0.982       141
-           lam      0.986     0.986     0.986       140
-           mim      0.993     0.993     0.993       140
-           nun      1.000     0.986     0.993       141
-           vav      0.993     0.979     0.986       141
-he (do-cheshm)      0.986     0.972     0.979       141
-            ye      1.000     0.984     0.992       182
-  NOT A LETTER      0.991     0.993     0.992       539
+          alef      0.982     1.000     0.991       164
+            be      0.953     0.988     0.970       163
+            pe      0.981     0.963     0.972       164
+            te      0.970     0.994     0.982       164
+            se      1.000     0.963     0.981       163
+           jim      0.964     0.988     0.976       163
+           che      1.000     0.951     0.975       163
+     he (jimi)      0.958     0.988     0.973       163
+           khe      0.994     0.994     0.994       163
+           dal      0.975     0.975     0.975       163
+           zal      0.982     0.976     0.979       164
+            re      0.981     0.970     0.975       164
+            ze      0.976     0.982     0.979       163
+           zhe      0.988     0.988     0.988       163
+           sin      0.994     1.000     0.997       163
+          shin      1.000     0.994     0.997       163
+           sad      0.988     1.000     0.994       163
+           zad      1.000     0.994     0.997       163
+            ta      0.994     1.000     0.997       164
+            za      1.000     0.988     0.994       163
+           eyn      0.982     0.988     0.985       164
+         gheyn      0.988     0.975     0.981       163
+            fe      0.976     1.000     0.988       163
+           qaf      1.000     0.976     0.988       164
+           kaf      0.973     0.984     0.978       183
+           gaf      0.994     0.982     0.988       164
+           lam      1.000     1.000     1.000       163
+           mim      1.000     0.982     0.991       163
+           nun      1.000     0.994     0.997       163
+           vav      0.994     1.000     0.997       164
+he (do-cheshm)      0.994     1.000     0.997       163
+            ye      0.985     0.990     0.988       204
+  NOT A LETTER      0.990     0.988     0.989       584
 
-      accuracy                          0.981      5106
-     macro avg      0.981     0.980     0.980      5106
-  weighted avg      0.981     0.981     0.981      5106
+      accuracy                          0.987      5871
+     macro avg      0.987     0.986     0.986      5871
+  weighted avg      0.987     0.987     0.987      5871

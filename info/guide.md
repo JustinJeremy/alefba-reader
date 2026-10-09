@@ -7,41 +7,52 @@ Run every command in the VS Code terminal, inside the `persian_ocr` folder.
 
 ## 1. What the project is
 
-A web app and command-line tool that reads **one Persian letter from a photo** and gives its
-**English spelling**, using the romanisation from the instructor's alphabet chart
-(e.g. غ → `gh`, ق → `q`).
+A web app and command-line tool that reads **Persian letters from a photo** (one letter, a marked
+letter on a sheet, or a few separate letters) and gives their **English spelling**, using the
+romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`).
 
 **How it works**
 
-1. **Clean-up** (OpenCV, `common.py`): fixes shadows and lighting, removes ruled lines, frames,
-   desk edges and captions, finds the letter and its dots, and turns it into a black-and-white
-   64×64 image.
+1. **Clean-up** (OpenCV, `common.py`): fixes shadows and lighting, smooths film grain, removes
+   ruled lines (also slanted, curved, faint or dashed ones, and where they cross a letter), frames,
+   desk edges, fingers and captions, finds the letter and its dots, and turns it into a
+   black-and-white 64×64 image. Small photos are enlarged first so dots survive.
 2. **Marks** (`marks.py`): on a whole alphabet sheet, finds the letter that is **circled,
    highlighted or pointed at with an arrow**, in any marker colour.
-3. **Model** (PyTorch CNN, ~774k parameters, `common.py`): 33 possible answers, the 32 letters
+3. **Several letters** (`segment.py`): a photo of 2–20 separate letters is split into letters
+   (body + dots), and each is read on its own, in Persian reading order (right to left).
+4. **Model** (PyTorch CNN, ~774k parameters, `common.py`): 33 possible answers, the 32 letters
    plus **"not a letter"**.
-4. **Refusals** (`predict.py`): blank or dark photos, noise, shapes running off the photo edge,
+5. **Refusals** (`predict.py`): blank or dark photos, noise, shapes running off the photo edge,
    non-Persian writing and objects get "No Persian letter found" instead of a guess.
-5. **Lookup table**: the letter is turned into its spelling, e.g. `š`, or `sh` with `--ascii`.
+6. **Lookup table**: the letter is turned into its spelling, e.g. `š`, or `sh` with `--ascii`.
 
 **Training data**
 
 - **Handwriting:** 32,000 images (Yousefnezhad dataset)
 - **Printed:** 14,874 photo-like images in 37 fonts
 - **"Not a letter":** 5,384 images (Latin letters, digits, shapes)
+- **Hard copies:** 7,650 letters (and non-letters) with ruled lines, film grain or "blackout"
+  (light letter fading into black), made by `effects.py`
+- **Team handwriting:** 125 letters from Mark's, Kaye's and Ethan's clear sheets
+  (`member_handwriting/`), each shown 15 times per round
 - **Held out:** the Calibri family is never trained on, to measure accuracy on an unseen font
 
 **Results** (full numbers in `results/metrics.txt`)
 
 | Measure | Result |
 |---|---|
-| Handwritten | 97.9% |
-| Printed | 98.2% |
-| Unseen font | 96.7% |
+| Handwritten | 98.8% |
+| Printed | 97.9% |
+| Unseen font | 96.9% |
+| Letters with lines / grain / blackout | 99.0% |
 | Real letters wrongly refused | 0.11% |
-| Speed | ~2 ms per image (model only) |
-| Test sets | all 100% (rehearsal, hard, real photos, marked sheets) |
-| Automated tests | 147 |
+| Speed | ~3 ms per image (model only) |
+| Team handwriting (members' earlier sheets, never trained on) | 104/107 (97.2%) |
+| Photos of several letters (`multi_set`) | 23/24 |
+| Rehearsal, marked sheets | 100% |
+| Hard set (incl. ruled lines, film grain, blackout) | 383/384 |
+| Automated tests | 179 (+2 known misses) |
 
 ---
 
@@ -67,6 +78,9 @@ pip install -r requirements.txt
 - After changing any file, restart the app and press **Ctrl+F5** in the browser.
 - If the phone can't open the page: allow Python through the Windows Firewall (private networks),
   or connect the laptop to the phone's hotspot and restart the app.
+- **"Could not reach the app"** (older versions said "Failed to fetch"): the page is open but
+  `python app.py` is no longer running (terminal closed, Ctrl+C, laptop slept). Start it again and
+  press the button again; there is no need to reload the photo.
 
 ### Read letters from the command line
 
@@ -76,17 +90,20 @@ python predict.py photo.jpg --ascii          (sh instead of š)
 python predict.py photo.jpg --min-conf 0.8   (warn below 80% instead of 60%)
 ```
 
+A photo with several letters prints one line per letter (`letter 1/3`, `letter 2/3`…), in Persian
+reading order.
+
 ### Check everything still works
 
 | What | Command | Time |
 |---|---|---|
-| All automated tests | `python -m pytest` | ~1 min |
+| All automated tests | `python -m pytest` | ~4 min |
 | One test file | `python -m pytest tests/test_marks.py` | |
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `147 passed, 2 xfailed`. The 2 "xfailed" are known misses (an app icon and the
-number 77776 are still read as letters), which is fine.
+Expected result: `179 passed, 2 xfailed`. The 2 "xfailed" are known misses (the number 77776 is
+still read as a letter, and Mark's ق is read as ض in a row of two letters), which is fine.
 
 ### Score the test sets
 
@@ -97,6 +114,7 @@ python score_testset.py rehearsal_set
 python score_testset.py hard_set
 python score_testset.py real_photos
 python score_testset.py marked_set
+python score_testset.py multi_set          (photos of several letters)
 ```
 
 ### Rebuild the training data and retrain
@@ -106,11 +124,12 @@ Only needed if you change the model or the data.
 | Step | Command | Time |
 |---|---|---|
 | 1. Handwriting (only if `data/` is missing) | `python convert_dataset.py <folder with Random1…Random10>` | ~1 min |
-| 2. Printed letters + "not a letter" images | `python prepare_data.py` | ~3 min |
-| 3. Train (also writes the letter profile and results) | `python train.py` | **~85 min** |
+| 2. Printed letters, "not a letter" and hard copies (lines, grain, blackout) | `python prepare_data.py` | ~6 min |
+| Only the hard copies (after changing `effects.py`) | `python prepare_data.py --effects-only` | ~3 min |
+| 3. Train (also writes the letter profile and results; uses `member_handwriting/` too) | `python train.py` | **~2–3 h** |
 | Only rebuild the letter profile | `python build_profile.py` | ~3 min |
 
-After retraining, run `python -m pytest` and all four score commands before using the new model.
+After retraining, run `python -m pytest` and all five score commands before using the new model.
 If the results get worse, git still has the old model (`git checkout persian_cnn.pt letter_profile.npz`).
 
 ### Git (when working without help)
@@ -139,13 +158,29 @@ was trained on no longer tells you anything as a test.
 ### `real_photos/`: photos of one letter
 
 - **Easiest:** read the photo in the web app, choose the right letter and the folder, click **Save photo**.
-  The name is done for you.
+  The name is done for you. A photo of **several letters** gets one choice per letter (right to left)
+  and goes to `real_photos/multi_letter_photos/` by default, named e.g. `06-05_1.jpg` (چ ج).
 - **By hand:** copy the photo into one of the subfolders (`random_test_photos/`, `JJ/`, `Ethan/`,
   `Mark/`, `Kaye/`, or a new folder you make) and name it
   **`<number>_<name>_<anything>.jpg`**, e.g. `01_be_3.jpg`, `21_gheyn_phone.jpg`.
   Only the number decides the right answer; the full list of 32 numbers is in `real_photos/README.txt`.
 - **Check:** `python score_testset.py real_photos`. Files without a number are skipped and listed.
 - Automatic: every correctly named photo is scored.
+
+### `multi_set/`: photos of several letters
+
+- Copy the photo into `multi_set/` and name it with **all** its letters' numbers in Persian reading
+  order (right to left, then the next row), joined by `-`: e.g. `07-08-09-10_row1.jpg` for ح خ د ذ.
+- **Check:** `python score_testset.py multi_set`.
+- Automatic: every photo here is also an automated test (`tests/test_multi.py`).
+- Keep the letters well apart and fully inside the photo (a letter cut off by the photo edge is skipped).
+
+### `member_handwriting/`: a member's letters for **training**
+
+This is the one photo folder that **is** trained on. Add a member's clear alphabet sheet cut into one
+photo per letter, named like the test folders (`05_jim_top.jpg`), in `member_handwriting/<Name>/`,
+then retrain. Never put the same photos in `real_photos/` too: the members' **earlier** sheets in
+`real_photos/<Member>/*_sheet.jpg` are the test for their handwriting.
 
 ### `marked_set/`: a whole alphabet sheet with one letter marked
 
@@ -192,17 +227,21 @@ After any change: **restart the app**, press **Ctrl+F5**, and run **`python -m p
 | I want to change… | File | What to edit |
 |---|---|---|
 | A letter's English spelling | `common.py` | `LOOKUP` (chart spelling), `LOOKUP_ASCII` (plain), `NAMES` |
-| Save folders in the dropdown | `app.py` | `DEFAULT_FOLDERS`, or just create a folder inside `real_photos/` |
+| Save folders in the dropdown | `app.py` | `DEFAULT_FOLDERS` (`MULTI_FOLDER` for photos of several letters), or just create a folder inside `real_photos/` |
 | Maximum upload size (20 MB) | `app.py` | `MAX_CONTENT_LENGTH` |
 | "Low confidence" warning (60%) | `static/app.js` | `t.confidence < 0.6` (2 places) |
 | "Not sure" note (50%) | `static/app.js` | `t.confidence < 0.5` |
-| Colours | `static/style.css` | top of the file: `--maroon`, `--gold`, `--cream`… |
+| Colours | `static/style.css` | the variables at the top of the file: `--primary` (banner, buttons), `--accent` (edges, bar), `--page`… |
 | When the two-column layout starts (960 px) | `static/style.css` | `@media (min-width: 960px)` |
 | Page text (headings, tips) | `templates/index.html` | the text itself |
 | Error messages | `predict.py` | `NO_LETTER`, `NO_LETTER_BLANK`, `NO_LETTER_EDGE`, `NOT_PERSIAN`, `MANY_LETTERS` |
 | How dark/blank a photo must be to be refused | `predict.py` | `MIN_CONTRAST = 12` (lower = refuses less) |
-| Noise / grain refusal | `predict.py` | `MAX_INK = 0.32` (higher = refuses less) |
-| "Unlike every letter" refusal | `predict.py` | `MAX_DISTANCE = 0.65` (higher = refuses less) |
+| Noise / grain refusal | `predict.py` | `MAX_INK = 0.32` (higher = refuses less), `MAX_GRAIN = 25` |
+| When grainy photos get smoothed | `common.py` | `GRAIN = 2.5` (lower = smooths more photos) |
+| Photos enlarged before clean-up (under 256 px) | `common.py` | `SMALL = 256` |
+| "Unlike every letter" refusal | `predict.py` | `MAX_DISTANCE = 0.65` (higher = refuses less); `MULTI_MAX_DISTANCE = 0.85` for photos of several letters |
+| Most letters read from one photo (20) | `predict.py` | `MAX_LETTERS` |
+| Splitting a photo into letters | `segment.py` | `DOT_REACH` (how far a dot may be), `PIECE_GAP` (pieces of one letter), `MIN_SIZE` (smallest letter vs. the biggest) |
 | English-text refusal on busy photos | `predict.py` | `MIN_PERSIAN = 0.22` (lower = refuses less) |
 | When the stricter crop is also tried | `predict.py` | `STRICT_BELOW = 0.99` |
 | How many shapes count as "many letters" | `marks.py` | `many_letters(img, limit=35)` |
@@ -212,6 +251,8 @@ After any change: **restart the app**, press **Ctrl+F5**, and run **`python -m p
 | *Needs retraining:* fonts used | `prepare_data.py` | `WINDOWS_FONTS`, or add `.ttf` files to `fonts/` |
 | *Needs retraining:* "not a letter" characters | `prepare_data.py` | `NOT_PERSIAN_CHARS` |
 | *Needs retraining:* image size (64) | `common.py` | `SIZE`, plus the model's layers |
+| *Needs retraining:* lines / grain / blackout copies | `effects.py`, `prepare_data.py` | the effect functions; `FX_HANDWRITTEN`, `FX_PRINTED`, `FX_NEGATIVE` (how many) |
+| *Needs retraining:* how often team letters are shown | `train.py` | `MEMBER_REPEAT = 15` |
 
 Every threshold has a comment next to it with the numbers it was measured on. Read that before
 changing it, because loosening a refusal rule can start refusing real letters, or the other way round.
@@ -222,9 +263,11 @@ changing it, because loosening a refusal rule can start refusing real letters, o
 
 | Folder | What's in it |
 |---|---|
-| `rehearsal_set/`, `hard_set/` | letters from the slide-3 chart, clean and distorted (test only) |
+| `rehearsal_set/`, `hard_set/` | letters from the slide-3 chart, clean and distorted, incl. ruled lines, film grain and blackout (test only) |
 | `marked_set/` | alphabet sheets with one letter marked (test only) |
-| `real_photos/` | your saved photos: `random_test_photos/`, `JJ/`, `Ethan/`, `Mark/`, `Kaye/` |
+| `multi_set/` | photos of 2–4 letters, read letter by letter (test only) |
+| `real_photos/` | your saved photos: `random_test_photos/`, `JJ/`, `Ethan/`, `Mark/`, `Kaye/`; members' sheets |
+| `member_handwriting/` | members' letters cut from their clear sheets (**training**) |
 | `no_letter_set/` | photos the app must refuse |
 | `results/` | `metrics.txt` (per-letter scores) and the confusion matrix, useful for slides |
 | `data/` | training images (not on GitHub; rebuilt with steps 1–2 in section 2) |

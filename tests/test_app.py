@@ -93,6 +93,30 @@ def test_save_into_a_chosen_folder(client, tmp_path, monkeypatch):
     assert os.listdir(tmp_path / "Kaye") == ["01_be_1.jpg"]
 
 
+def test_save_photo_of_several_letters(client, tmp_path, monkeypatch):
+    import app as app_module
+    monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))
+    names = []
+    for _ in range(2):
+        r = client.post("/save", data={"image": (io.BytesIO(chart_bytes()), "x.jpg"), "class_ids": "6,5",
+                                       "folder": "multi_letter_photos"}, content_type="multipart/form-data")
+        assert r.status_code == 200
+        names.append(r.get_json()["saved"])
+    assert names == ["06-05_1.jpg", "06-05_2.jpg"]            # letters in reading order, then the number
+    import score_testset                                       # and the scorer reads the answer from the name
+    labels, _ = score_testset.labelled_files(str(tmp_path), str(tmp_path / "multi_letter_photos"))
+    assert labels == {"06-05_1.jpg": [6, 5], "06-05_2.jpg": [6, 5]}
+
+
+@pytest.mark.parametrize("ids", ["6", "6,32", "6,x", ",".join(["1"] * 21)])
+def test_save_rejects_bad_letter_lists(client, tmp_path, monkeypatch, ids):
+    import app as app_module
+    monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))
+    r = client.post("/save", data={"image": (io.BytesIO(chart_bytes()), "x.jpg"), "class_ids": ids},
+                    content_type="multipart/form-data")
+    assert r.status_code == 400 and not os.listdir(tmp_path)
+
+
 @pytest.mark.parametrize("folder", ["../outside", "..", "C:/Windows", "nope"])
 def test_save_refuses_unknown_folders(client, tmp_path, monkeypatch, folder):
     import app as app_module
@@ -107,12 +131,13 @@ def test_folder_list_has_team_folders_then_others(tmp_path, monkeypatch):
     import app as app_module
     monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))
     (tmp_path / "Mark").mkdir(); (tmp_path / "phone_tests").mkdir(); (tmp_path / "notes.txt").write_text("x")
-    assert app_module.save_folders() == ["random_test_photos", "JJ", "Ethan", "Mark", "Kaye", "phone_tests"]
+    assert app_module.save_folders() == ["random_test_photos", "multi_letter_photos", "JJ", "Ethan", "Mark", "Kaye",
+                                         "phone_tests"]
 
 
 def test_home_page_offers_the_folders(client):
     html = client.get("/").data.decode("utf-8")
-    for f in ("random_test_photos", "JJ", "Ethan", "Mark", "Kaye"):
+    for f in ("random_test_photos", "multi_letter_photos", "JJ", "Ethan", "Mark", "Kaye"):
         assert f'<option value="{f}"' in html
 
 

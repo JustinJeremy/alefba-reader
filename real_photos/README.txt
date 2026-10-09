@@ -3,7 +3,15 @@ REAL PHOTOS - TEST ONLY, never train on these.
 Folders
   random_test_photos/   photos saved with the web app's "Save as test photo" button,
                         numbered per letter: 01_be_1.jpg, 01_be_2.jpg, ... (never overwritten)
+  multi_letter_photos/  saved photos of SEVERAL letters: the letters' numbers in reading order
+                        (right to left), then a count: 06-05_1.jpg = چ ج (che, jim)
   JJ/  Ethan/  Mark/  Kaye/   each person's own photos (handwriting and printed)
+                        <member>_sheet.jpg            their first alphabet sheet (whole photo)
+                        <number>_<name>_sheet.jpg     that sheet cut into one photo per letter (the test
+                                                      for their handwriting)
+                        <member>_sheet_top/bottom.jpg their clear sheets: cut into member_handwriting/
+                                                      and used for TRAINING (photos without a number
+                                                      at the start are never scored)
 
 Naming: start every file name with the letter's number and name, then anything you like:
   01_be_1.jpg   01_be_2.jpg   01_be_notebook.jpg   21_gheyn_phone.jpg

@@ -8,6 +8,8 @@ let stream = null;             // live camera stream, while the camera is on
 let mirrored = false;          // mirror the camera PREVIEW only (never the saved photo)
 let facing = "environment";    // which camera to ask for: "environment" (rear) or "user" (front)
 let sel = null;                // box dragged on the photo, in the photo's own pixels
+let several = false;           // the last answer held several letters (saved with one choice per letter)
+const SINGLE_FOLDER = "random_test_photos", MULTI_FOLDER = "multi_letter_photos";
 
 
 // ---------- showing and hiding parts of the page ----------
@@ -15,6 +17,7 @@ let sel = null;                // box dragged on the photo, in the photo's own p
 function hideResults() {
   $("placeholder").hidden = false;
   $("result").hidden = true;
+  $("word").hidden = true;
   $("howread").hidden = true;
   $("savebox").hidden = true;
 }
@@ -239,9 +242,36 @@ $("flipBtn").onclick = async () => {
 };
 
 
+// ---------- talking to the app (python app.py) ----------
+
+// POST a form and return the JSON answer. Turns the browser's bare "Failed to fetch" (the app is not
+// running, the laptop slept, the Wi-Fi dropped) and non-JSON error pages into messages a person can act on.
+async function send(url, fd) {
+  let r;
+  try {
+    r = await fetch(url, { method: "POST", body: fd });
+  } catch (e) {
+    throw new Error("Could not reach the app. Check that 'python app.py' is still running in the "
+      + "terminal (start it again if it stopped), then press the button again."
+      + (isPhone ? " On a phone, also check that it is on the same Wi-Fi as the laptop." : ""));
+  }
+  let d;
+  try { d = await r.json(); } catch (e) { d = {}; }
+  if (!r.ok) {
+    throw new Error(d.error || (r.status === 413 ? "This photo is too big. Send a smaller copy."
+                                                 : "The app hit a problem reading this photo (error " + r.status + ")."));
+  }
+  return d;
+}
+
+
 // ---------- reading the letter ----------
 
 function showAnswer(d) {
+  if (d.letters && d.letters.length > 1) { showWord(d); return; }
+  $("word").hidden = true;
+  $("views").replaceChildren();
+  $("view").hidden = false;
   const [t, ...rest] = d.results;
 
   $("letter").textContent = t.letter;
@@ -273,6 +303,7 @@ function showAnswer(d) {
   $("found").src = d.found;
   $("view").src = d.view;
   $("truth").value = t.id;
+  setSaveMode([]);
   $("saved").textContent = "";
   $("saveBtn").disabled = false;
 
@@ -280,6 +311,71 @@ function showAnswer(d) {
   $("result").hidden = false;
   $("howread").hidden = false;
   $("savebox").hidden = false;
+}
+
+// a photo with several letters: one tile per letter, in Persian reading order (first letter on the right)
+function showWord(d) {
+  const tops = d.letters.map(l => l.results[0]);
+  $("wordLatin").textContent = tops.map(t => t.latin).join(" ");
+  $("tiles").replaceChildren(...tops.map((t, n) => {
+    const tile = document.createElement("div");
+    tile.className = "mini" + (t.confidence < 0.6 ? " low" : "");
+    const num = document.createElement("small");
+    num.textContent = n + 1;
+    const ch = document.createElement("span");
+    ch.className = "mini-letter";
+    ch.lang = "fa";
+    ch.textContent = t.letter;
+    const lat = document.createElement("b");
+    lat.textContent = t.latin;
+    const conf = document.createElement("small");
+    conf.textContent = t.name + " · " + Math.round(t.confidence * 100) + "%";
+    tile.append(num, ch, lat, conf);
+    return tile;
+  }));
+  const label = document.createElement("b");
+  label.textContent = "Read:";
+  $("wordHow").replaceChildren(label, " " + d.how + ". The numbers match the boxes on your photo below.");
+
+  $("found").src = d.found;
+  $("view").hidden = true;
+  $("views").replaceChildren(...d.letters.map((l, n) => {
+    const im = document.createElement("img");
+    im.src = l.view;
+    im.alt = "Cleaned-up letter " + (n + 1);
+    return im;
+  }));
+
+  setSaveMode(tops);
+  $("saved").textContent = "";
+  $("saveBtn").disabled = false;
+
+  $("placeholder").hidden = true;
+  $("result").hidden = true;
+  $("word").hidden = false;
+  $("howread").hidden = false;
+  $("savebox").hidden = false;
+}
+
+// Save card: one "really is" choice for a single letter, or one per letter (reading order, first on
+// the right) for a photo of several letters, which go to their own folder by default.
+function setSaveMode(tops) {
+  several = tops.length > 1;
+  $("truth").hidden = several;
+  $("truthMulti").hidden = !several;
+  $("truthLabel").textContent = several ? "These letters really are (right to left):" : "This letter really is:";
+  $("truthLabel").htmlFor = several ? "" : "truth";
+  $("truthMulti").replaceChildren(...tops.map((t, n) => {
+    const s = $("truth").cloneNode(true);
+    s.removeAttribute("id");
+    s.hidden = false;                  // (the single-letter list it is copied from is hidden right now)
+    s.value = t.id;
+    s.setAttribute("aria-label", "Letter " + (n + 1));
+    return s;
+  }));
+  const f = $("folder").value;
+  if (several && f === SINGLE_FOLDER) $("folder").value = MULTI_FOLDER;
+  if (!several && f === MULTI_FOLDER) $("folder").value = SINGLE_FOLDER;
 }
 
 $("go").onclick = async () => {
@@ -293,10 +389,7 @@ $("go").onclick = async () => {
       fd.append("sel_x", sel.x); fd.append("sel_y", sel.y);
       fd.append("sel_w", sel.w); fd.append("sel_h", sel.h);
     }
-    const r = await fetch("/predict", { method: "POST", body: fd });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "Something went wrong.");
-    showAnswer(d);
+    showAnswer(await send("/predict", fd));
   } catch (e) {
     $("err").textContent = e.message;
   }
@@ -313,13 +406,15 @@ $("saveBtn").onclick = async () => {
   try {
     const fd = new FormData();
     fd.append("image", current);
-    fd.append("class_id", $("truth").value);
+    if (several) {
+      fd.append("class_ids", [...$("truthMulti").querySelectorAll("select")].map(s => s.value).join(","));
+    } else {
+      fd.append("class_id", $("truth").value);
+    }
     fd.append("folder", $("folder").value);
-    const r = await fetch("/save", { method: "POST", body: fd });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "Could not save.");
+    const d = await send("/save", fd);
     $("saved").textContent = "Saved as " + d.folder + "/" + d.saved
-      + ". You can save it again, to another folder or as another letter.";
+      + ". You can save it again, to another folder or as " + (several ? "other letters." : "another letter.");
   } catch (e) {
     $("saved").textContent = "";
     $("err").textContent = e.message;

@@ -4,7 +4,9 @@ import cv2
 import numpy as np
 import torch
 import marks
-from common import (PersianCNN, preprocess, caption_suspect, load_image, _binary, _prepare_bw, SIZE,
+from segment import find_letters
+from common import (PersianCNN, preprocess, caption_suspect, load_image, _binary, _prepare_bw, _grain,
+                    _flatten_lighting, SIZE,
                     LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, NOT_A_LETTER)
 
 # next to this file, so the app works no matter which folder it is started from
@@ -20,8 +22,11 @@ MAX_INK = 0.32       # share of the photo that looks like ink. Real photos up to
                      # print 0.30); random noise 0.34+, grainy dark camera frames 0.47+
 MAX_DISTANCE = 0.65  # how unlike its letter's average a photo may look (0 = identical). Real photos up
                      # to 0.58, random noise and dark camera grain about 0.55-0.8
+MAX_GRAIN = 25      # pixel-to-pixel jitter (common._grain) above which the photo is noise, not a grainy
+                    # photo: real photos up to 5.4, film-grain training images up to 12, random noise 38+
 MIN_PERSIAN = 0.22   # on a photo with many shapes, the share that must look very much like a Persian letter
-                     # (distance under 0.15). Persian alphabet sheets 0.32-0.36, English text 0.00-0.12
+PERSIAN_CLOSE = 0.25 # (distance under PERSIAN_CLOSE). Batch 10 model: Persian alphabet sheets 0.40-0.44,
+                     # English text 0.00 (batch 9 model used 0.15: sheets 0.32-0.36, English 0.00-0.12)
 PROFILE_PATH = os.path.join(os.path.dirname(MODEL_PATH), "letter_profile.npz")
 
 NO_LETTER_BLANK = "No Persian letter found: the photo is too dark or blank. Check the camera, the lighting and the lens."
@@ -71,6 +76,14 @@ def photo_contrast(img):
     return float(np.percentile(g, 99.5) - np.percentile(g, 0.5))
 
 
+def photo_grain(img):
+    """How grainy the photo is (see common._grain), measured at the size the clean-up works at."""
+    g = img if img.ndim == 2 else cv2.cvtColor(np.ascontiguousarray(img[:, :, :3]), cv2.COLOR_BGR2GRAY)
+    k = min(1.0, 1024 / max(g.shape))
+    g = cv2.resize(g, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if k < 1 else g
+    return _grain(_flatten_lighting(g))
+
+
 def letter_distance(cls, feats):
     """How unlike the average of letter cls these features are (0 = identical), or 0 without a profile."""
     centres = _letter_centres()
@@ -80,18 +93,36 @@ MANY_LETTERS = ("This photo shows many letters. Mark the one to read (circle it,
                 "an arrow at it), or drag a box around it.")
 
 
+MAX_LETTERS = 20     # a photo with 2..MAX_LETTERS separate letters is read letter by letter
+MULTI_MIN_CONF = 0.85  # and each such letter must be at least this sure. Measured: multi_set letters 0.95+,
+                       # letter-like pieces of screenshots and English text up to 0.81 (when not refused anyway)
+CAPTION_ROW = 0.65  # a row whose biggest shape is smaller than this (x the biggest letter) is caption text.
+                    # Measured: caption letters 0.44-0.55; every row of real letters has one of 0.7 or more
+MULTI_MAX_DISTANCE = 0.42  # stricter "unlike every letter" limit for each letter of a photo with several letters
+                           # (more pieces = more chances that one only looks like a letter). Measured on the
+                           # batch 10 model: multi_set letters up to 0.38, pieces of a game screenshot 0.46+
+
+
 def predict_with_view(img, topk=3, select=None):
-    """Read one letter from a photo.
+    """Read one letter from a photo (the first one, if the photo holds several: see read_photo).
     select: optional (x, y, w, h) box the user dragged around the letter.
     -> ([(class, confidence) x topk], (cleaned image, letter box in img), how the letter was found)"""
+    letters, how = read_photo(img, topk, select)
+    res, view = letters[0]
+    return res, view, how
+
+
+def read_photo(img, topk=3, select=None):
+    """Read every letter in a photo: one letter, a marked letter on a sheet, or a few separate letters.
+    -> ([(top-k, (cleaned image, box in img)), ...] in reading order (right to left), how they were found)"""
     ox = oy = 0
     how = "whole photo"
     if img is None or img.size == 0:
         raise ValueError("Image is empty or unreadable.")
     if photo_contrast(img) < MIN_CONTRAST:
         raise ValueError(NO_LETTER_BLANK)
-    if (_binary(img) > 0).mean() > MAX_INK:          # speckle everywhere: noise, grain, a textured surface
-        raise ValueError(NO_LETTER)
+    if (_binary(img) > 0).mean() > MAX_INK or photo_grain(img) > MAX_GRAIN:   # speckle everywhere: noise,
+        raise ValueError(NO_LETTER)                                         # grain, a textured surface
     if select is not None:
         x, y, w, h = (int(v) for v in select)
         x, y = max(0, x), max(0, y)
@@ -106,15 +137,52 @@ def predict_with_view(img, topk=3, select=None):
             how = {"circle": "the circled letter", "highlight": "the highlighted letter",
                    "arrow": "the letter the arrow points at"}[target.kind]
             ox, oy = ox + target.offset[0], oy + target.offset[1]
-            return res, (view, (bx + ox, by + oy, bw, bh)), how
+            return [(res, (view, (bx + ox, by + oy, bw, bh)))], how
         except ValueError:          # the "mark" held no letter: it was not a real mark, read the photo
             pass
     if select is None and marks.many_letters(img):
         raise ValueError(MANY_LETTERS if looks_persian(img) else NOT_PERSIAN)
+    several = _read_several(img, topk)
+    if several:
+        n = len(several)
+        how = f"{n} letters, right to left" + (" (your selection)" if select is not None else "")
+        return [(res, (view, (bx + ox, by + oy, bw, bh))) for res, (view, (bx, by, bw, bh)) in several], how
     res, (view, (bx, by, bw, bh)) = _read_one(img, topk)
     if select is None and _runs_off_edge(img, (bx, by, bw, bh)):
         raise ValueError(NO_LETTER_EDGE)
-    return res, (view, (bx + ox, by + oy, bw, bh)), how
+    return [(res, (view, (bx + ox, by + oy, bw, bh)))], how
+
+
+def _read_several(img, topk):
+    """A photo of a few separate letters -> each letter read on its own, in reading order; None when
+    fewer than two real letters are found (shapes the model refuses, like a caption, do not count),
+    so a photo of one letter is always read exactly as before."""
+    letters = find_letters(img)
+    if not 2 <= len(letters) <= MAX_LETTERS:
+        return None
+    size = lambda l: max(l.box[2], l.box[3])
+    biggest = max(size(l) for l in letters)
+    rows = {r: [l for l in letters if l.row == r] for r in {l.row for l in letters}}
+    letters = [l for l in letters if max(size(m) for m in rows[l.row]) >= CAPTION_ROW * biggest]
+    rows = [l.row for l in letters]                 # (a row of only small shapes is caption text: dropped)
+    if not letters or max(rows.count(r) for r in set(rows)) < 2:   # letters are written side by side; a small
+        return None                                                 # shape alone under a letter is its caption
+    H, W = img.shape[:2]
+    out = []
+    for letter in letters:
+        x, y, w, h = letter.box
+        p = int(0.3 * max(w, h)) + 4                   # paper around it, as in a photo of one letter (a small
+        x0, y0 = max(0, x - p), max(0, y - p)          # he cut tightly was read as "not a letter"); a neighbour
+                                                       # peeking in touches the crop edge and is dropped
+        x1, y1 = min(W, x + w + p), min(H, y + h + p)
+        try:
+            res, (view, (bx, by, bw, bh)) = _read_one(img[y0:y1, x0:x1], topk, MULTI_MAX_DISTANCE)
+        except ValueError:
+            continue
+        if res[0][1] < MULTI_MIN_CONF:
+            continue
+        out.append((res, (view, (bx + x0, by + y0, bw, bh))))
+    return out if len(out) >= 2 else None
 
 
 def _runs_off_edge(img, box):
@@ -158,10 +226,10 @@ def looks_persian(img, limit=25):
         cls = out[:, :NOT_A_LETTER].argmax(1).numpy()          # nearest letter, for the distance
         refused = (out.argmax(1) == NOT_A_LETTER).numpy()      # the model's own "not a letter" answer
     dist = np.where(refused, 1.0, 1 - (f.numpy() * centres[cls]).sum(1))
-    return float((dist < 0.15).mean()) >= MIN_PERSIAN
+    return float((dist < PERSIAN_CLOSE).mean()) >= MIN_PERSIAN
 
 
-def _read_one(img, topk):
+def _read_one(img, topk, max_distance=MAX_DISTANCE):
     """The photo (or crop) holds one letter -> top-k, (cleaned image, letter box)."""
     p, view = _probs(img)
     if caption_suspect(img):                # a caption (small Latin text) sits under the letter
@@ -182,7 +250,7 @@ def _read_one(img, topk):
     if p[NOT_A_LETTER] >= 0.5:                      # the model itself says: this is not a Persian letter
         raise ValueError(NO_LETTER)
     p = p[:NOT_A_LETTER]                            # only the 32 letters are ever shown as answers
-    if letter_distance(int(p.argmax()), feats) > MAX_DISTANCE:
+    if letter_distance(int(p.argmax()), feats) > max_distance:
         raise ValueError(NO_LETTER)
     conf, idx = p.topk(topk)
     return [(int(i), float(c)) for c, i in zip(conf, idx)], (view, box)
@@ -215,11 +283,19 @@ if __name__ == "__main__":
     out = []
     for path in a.images:
         try:
-            t = time.time(); (i, c), *_ = predict_file(path)
+            t = time.time()
+            img = load_image(path)
+            if img is None:
+                raise ValueError(f"Cannot read image: {path}")
+            letters, how = read_photo(img)
         except (ValueError, OSError) as e:          # unreadable / blank image: report it, keep going
             print(f"{path}: ERROR - {e}", file=sys.stderr); out.append("?")
             continue
-        warn = "  [LOW CONFIDENCE]" if c < a.min_conf else ""
-        print(f"{path}: {LETTERS[i]} ({NAMES[i]}) -> {table[i]}  conf={c:.2f}  {1000*(time.time()-t):.0f} ms{warn}")
-        out.append(table[i])
-    print("Output:", " ".join(out))
+        ms = 1000 * (time.time() - t)
+        for k, (res, _) in enumerate(letters):
+            i, c = res[0]
+            warn = "  [LOW CONFIDENCE]" if c < a.min_conf else ""
+            where = f" letter {k + 1}/{len(letters)}" if len(letters) > 1 else ""
+            print(f"{path}{where}: {LETTERS[i]} ({NAMES[i]}) -> {table[i]}  conf={c:.2f}  {ms:.0f} ms{warn}")
+        out.append(" ".join(table[r[0][0]] for r, _ in letters))
+    print("Output:", " | ".join(out) if any(" " in o for o in out) else " ".join(out))

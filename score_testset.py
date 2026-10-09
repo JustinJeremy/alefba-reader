@@ -3,10 +3,13 @@ Usage:  python score_testset.py [folder]     e.g. rehearsal_set, hard_set or rea
 Every sub-folder (q95, caption, JJ, Ethan, ...) is scored separately.
 The right answer comes from <folder>/labels.csv if there is one, otherwise from the file name:
 '01_be_desk.jpg' -> class 1 (the number is the class id, see real_photos/README.txt).
+Photos of several letters (multi_set): '07-08-09_row1.jpg' -> letters 7, 8, 9 in reading order;
+the photo counts as correct only when every letter is right and in the right order.
 """
 import csv, glob, os, re, sys, time
 from common import LETTERS, LOOKUP
-from predict import predict_file, utf8_console
+from common import load_image
+from predict import read_photo, utf8_console
 
 IMAGE_EXT = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 
@@ -20,9 +23,10 @@ def labelled_files(root, folder):
     for name in os.listdir(folder):
         if not name.lower().endswith(IMAGE_EXT):
             continue
-        m = re.match(r"(\d{1,2})_", name)
-        if m and 0 <= int(m.group(1)) < 32:
-            labels[name] = int(m.group(1))
+        m = re.match(r"(\d{1,2}(?:-\d{1,2})*)_", name)
+        nums = [int(v) for v in m.group(1).split("-")] if m else []
+        if nums and all(0 <= v < 32 for v in nums):
+            labels[name] = nums[0] if len(nums) == 1 else nums
         else:
             unnamed.append(name)
     return labels, unnamed
@@ -39,15 +43,22 @@ def main(root):
             continue
         right, wrong = 0, []
         for name, truth in sorted(labels.items()):
+            want = truth if isinstance(truth, list) else [truth]
+            show = lambda cs: " ".join(LETTERS[c] for c in cs) + " (" + " ".join(LOOKUP[c] for c in cs) + ")"
             try:
-                (pred, conf), *_ = predict_file(os.path.join(q, name))
+                img = load_image(os.path.join(q, name))
+                if img is None:
+                    raise ValueError("unreadable image")
+                letters, _ = read_photo(img)
             except ValueError as e:                      # no letter found / unreadable photo
-                wrong.append(f"  {name}: {LETTERS[truth]} ({LOOKUP[truth]}) -> ERROR {e}")
+                wrong.append(f"  {name}: {show(want)} -> ERROR {e}")
                 continue
-            ok = LOOKUP[pred] == LOOKUP[truth]          # output text; every letter has its own spelling now
+            got = [res[0][0] for res, _ in letters]          # a one-letter photo read as two letters is wrong
+            ok = [LOOKUP[c] for c in got] == [LOOKUP[c] for c in want]   # the output text
             right += ok
             if not ok:
-                wrong.append(f"  {name}: {LETTERS[truth]} ({LOOKUP[truth]}) -> got {LETTERS[pred]} ({LOOKUP[pred]}) conf={conf:.2f}")
+                conf = " ".join(f"{res[0][1]:.2f}" for res, _ in letters)
+                wrong.append(f"  {name}: {show(want)} -> got {show(got)} conf={conf}")
         print(f"{os.path.basename(q)}: {right}/{len(labels)} correct")
         print("\n".join(wrong) if wrong else "  no mistakes")
         if unnamed:
