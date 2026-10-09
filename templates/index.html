@@ -80,6 +80,14 @@
       </div>
     </section>
 
+    <!-- 2b. the answer when the photo holds several letters -->
+    <section class="card" id="word" aria-live="polite" hidden>
+      <h2>Answer</h2>
+      <div id="wordLatin"></div>
+      <div id="tiles" dir="rtl"></div>
+      <div id="wordHow"></div>
+    </section>
+
     <!-- 3. keep the photo as a test image (right under the answer) -->
     <section class="card" id="savebox" hidden>
       <h2>Save as test photo</h2>
@@ -116,6 +124,7 @@
         </figcaption>
       </figure>
       <figure>
+        <div id="views"></div>
         <img id="view" alt="The cleaned-up black and white letter the model read">
         <figcaption>
           <b>2. Cleaned-up letter</b>

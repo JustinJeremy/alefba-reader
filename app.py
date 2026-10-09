@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from flask import Flask, jsonify, render_template, request
 from common import LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, load_image
-from predict import predict_with_view, load_model
+from predict import read_photo, load_model
 
 # "Save as test photo" puts photos in a folder inside real_photos/, named <class>_<name>_<n>.jpg
 # (TEST ONLY, never train on them). Any folder made inside real_photos/ also shows up in the list.
@@ -15,6 +15,14 @@ DEFAULT_FOLDERS = ["random_test_photos", "JJ", "Ethan", "Mark", "Kaye"]
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 load_model()
+
+
+@app.errorhandler(413)
+def too_big(_):
+    """A photo over the upload limit: answer with a message the page can show (not an HTML page)."""
+    mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
+    return jsonify(error=f"This photo is too big (over {mb} MB). Take it again at a lower resolution "
+                         "or send a smaller copy."), 413
 
 
 def file_label(i):
@@ -42,8 +50,9 @@ def _data_url(img, ext=".png"):
     return f"data:image/{ext[1:]};base64," + base64.b64encode(buf.tobytes()).decode()
 
 
-def _found_here(img, box, side=360):
-    """The user's photo, shrunk, with a maroon box around the part that was read."""
+def _found_here(img, boxes, side=360):
+    """The user's photo, shrunk, with a maroon box around each part that was read (numbered when
+    there are several letters, in reading order)."""
     if img.ndim == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     elif img.shape[2] == 4:
@@ -51,16 +60,29 @@ def _found_here(img, box, side=360):
         img = (img[:, :, :3] * a + 255 * (1 - a)).astype(np.uint8)
     k = min(1.0, side / max(img.shape[:2]))
     small = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if k < 1 else img.copy()
-    x, y, w, h = (int(round(v * k)) for v in box)
-    pad = max(3, int(0.06 * max(w, h)))
     t = max(2, round(max(small.shape[:2]) / 150))
-    cv2.rectangle(small, (x - pad, y - pad), (x + w + pad, y + h + pad), (43, 30, 160), t, cv2.LINE_AA)   # maroon
+    for n, box in enumerate(boxes, 1):
+        x, y, w, h = (int(round(v * k)) for v in box)
+        pad = max(3, int(0.06 * max(w, h)))
+        cv2.rectangle(small, (x - pad, y - pad), (x + w + pad, y + h + pad), (43, 30, 160), t, cv2.LINE_AA)   # maroon
+        if len(boxes) > 1:
+            org = (x - pad, max(14, y - pad - 4))
+            cv2.putText(small, str(n), org, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 3, cv2.LINE_AA)
+            cv2.putText(small, str(n), org, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (43, 30, 160), 1, cv2.LINE_AA)
     return _data_url(small, ".jpg")
 
 
 def _cleaned(view, side=192):
     """The model's input, enlarged smoothly so it reads as a letter rather than blocky pixels."""
     return _data_url(cv2.resize((view * 255).astype(np.uint8), (side, side), interpolation=cv2.INTER_CUBIC))
+
+
+@app.errorhandler(500)
+def crashed(e):
+    """Any unexpected error: the details go to the terminal, the page gets a short message."""
+    app.logger.exception(getattr(e, "original_exception", e))
+    return jsonify(error="The app hit an unexpected problem with this photo (details are in the terminal "
+                         "running app.py). Try another photo, or drag a box around one letter."), 500
 
 
 @app.get("/")
@@ -79,12 +101,18 @@ def predict():
         return jsonify(error="That file is not a readable image."), 400
     try:
         select = _selection(request.form)
-        res, (view, box), how = predict_with_view(img, select=select)
+        letters, how = read_photo(img, select=select)
     except ValueError as e:
         return jsonify(error=str(e)), 400
-    return jsonify(results=[{"id": i, "letter": LETTERS[i], "latin": LOOKUP[i], "ascii": LOOKUP_ASCII[i],
-                             "name": NAMES[i], "confidence": round(c, 3)} for i, c in res],
-                   found=_found_here(img, box), view=_cleaned(view), how=how)
+    out = [{"results": _results(res), "view": _cleaned(view)} for res, (view, _) in letters]
+    # results / view: the (first) letter, as before; letters: every letter, in reading order (right to left)
+    return jsonify(results=out[0]["results"], view=out[0]["view"], letters=out,
+                   found=_found_here(img, [box for _, (_, box) in letters]), how=how)
+
+
+def _results(res):
+    return [{"id": i, "letter": LETTERS[i], "latin": LOOKUP[i], "ascii": LOOKUP_ASCII[i],
+             "name": NAMES[i], "confidence": round(c, 3)} for i, c in res]
 
 
 def _selection(form):

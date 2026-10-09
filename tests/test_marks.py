@@ -28,9 +28,11 @@ def test_mark_kind_is_recognised(name, kind):
     assert t is not None and t.kind == kind
 
 
-def test_unmarked_sheet_asks_for_a_mark():
+@pytest.mark.parametrize("path", [SHEET, os.path.join(ROOT, "marked_set", "notebook_without_mark.jpg")],
+                         ids=os.path.basename)
+def test_unmarked_sheet_asks_for_a_mark(path):
     with pytest.raises(ValueError, match="many letters"):
-        predict_file(SHEET)
+        predict_file(path)
 
 
 def test_dragged_box_reads_only_that_letter():

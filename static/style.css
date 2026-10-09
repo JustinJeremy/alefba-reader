@@ -465,6 +465,54 @@ input[type=file] { display: none; }
 #saved:empty { display: none; }
 
 
+/* ---------- several letters in one photo ---------- */
+
+#wordLatin {
+  font: 700 2rem/1.2 var(--heading);
+  color: var(--maroon);
+  overflow-wrap: anywhere;
+}
+
+#tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mini {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 84px;
+  padding: 8px 10px 10px;
+  border-radius: var(--radius);
+  background: var(--maroon);
+  color: var(--cream);
+  border: 2px solid var(--gold);
+}
+
+.mini.low { opacity: .6; }
+.mini small { font-size: .72rem; color: #f1d9a3; direction: ltr; }
+.mini b { font-size: 1.1rem; color: #fff; }
+
+.mini-letter {
+  font: 700 2.2rem/1.2 var(--persian);
+  color: var(--gold);
+}
+
+#wordHow { font-size: .9rem; color: var(--muted); }
+
+#views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  direction: rtl;
+}
+
+#views:empty { display: none; }
+#views img { width: 72px; height: 72px; border-radius: 6px; background: #000; }
+
+
 /* answer + save: one box, so Save always sits right under the answer */
 .side {
   display: grid;

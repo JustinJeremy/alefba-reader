@@ -40,8 +40,13 @@ def _vertical_runs(fg):
 
 def _strip_ruled_lines(bw, gray=None):
     """Erase long thin lines that cross the whole image (notebook rules), keep letter strokes."""
-    bw = _strip_straight_lines(bw)
-    return _strip_broken_lines(bw, gray)
+    bw = _strip_broken_lines(_strip_straight_lines(bw), gray)
+    w = bw.shape[1]
+    if w >= 600 and gray is not None:              # whole page: a bent or folded page curves its lines,
+        for x0 in (0, w // 3, 2 * w // 3):         # but over a third of the width they are nearly straight
+            x1 = min(w, x0 + w // 3 + 20)
+            bw[:, x0:x1] = _strip_broken_lines(np.ascontiguousarray(bw[:, x0:x1]), np.ascontiguousarray(gray[:, x0:x1]))
+    return bw
 
 
 def _strip_straight_lines(bw):
@@ -117,7 +122,7 @@ def _strip_broken_lines(bw, gray=None):
     tmax = max(3, int(0.02 * h))                  # thickest ruled line looked for
     thin = (fg & (vrun <= tmax)).astype(np.uint8)
     n, lab, st, _ = cv2.connectedComponentsWithStats(thin, connectivity=8)
-    cand = [i for i in range(1, n) if st[i][2] >= max(12, 0.1 * w) and st[i][2] >= 4 * st[i][3]]
+    cand = [i for i in range(1, n) if st[i][2] >= max(12, 0.05 * w) and st[i][2] >= 4 * st[i][3]]   # (dashes too)
     out, used = bw.copy(), set()
     xs_all = np.arange(w)
     ink = float(np.percentile(gray[fg], 10)) if gray is not None else 0.0
@@ -132,7 +137,7 @@ def _strip_broken_lines(bw, gray=None):
                 break
             a, b = np.polyfit(xs[keep], ys[keep], 1)
         keep = np.abs(ys - (a * xs + b)) <= 1.5
-        if abs(a) > 0.15 or len(np.unique(xs[keep])) < max(12, 0.1 * w):
+        if abs(a) > 0.15 or len(np.unique(xs[keep])) < max(12, 0.05 * w):
             continue                               # slanted or curved: a pen stroke, not a ruled line
         group = [j for j in cand if j not in used and
                  abs(st[j][1] + st[j][3] / 2 - (a * (st[j][0] + st[j][2] / 2) + b)) <= tmax + 2]
@@ -167,6 +172,20 @@ def _strip_broken_lines(bw, gray=None):
                     erase &= gray > (g_pen + g_line) / 2
         out[erase] = 0
     return out
+
+
+GRAIN = 2.5        # grain level (grey levels) above which the photo is smoothed before thresholding.
+                   # Measured: real photos and clean test sets 0-1.7, hard_set/shadow_noise ~5, film grain 1-5
+
+
+def _grain(gray):
+    """How grainy the photo is: typical pixel-to-pixel jitter on the paper, in grey levels
+    (average absolute difference to the 3x3 average, away from the edges of strokes)."""
+    g = gray.astype(np.float32)
+    d = np.abs(g - cv2.blur(g, (3, 3)))
+    edges = cv2.dilate((cv2.Canny(gray, 60, 150) > 0).astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    calm = ~edges
+    return float(np.mean(d[calm] if calm.mean() > 0.2 else d))   # (pure noise is "edges" everywhere)
 
 
 def _flatten_lighting(gray):
@@ -321,7 +340,10 @@ def _binary_gray(img_bgr):
         gray = cv2.resize(gray, (round(w * s), round(h * s)), interpolation=cv2.INTER_CUBIC)
     gray = _ignore_margin(gray)
     gray = _flatten_lighting(gray)
+    grain = _grain(gray)
     gray = cv2.medianBlur(gray, 3)
+    if grain > GRAIN:                              # film grain / camera noise: smooth it before thresholding
+        gray = cv2.GaussianBlur(gray, (0, 0), min(3.0, grain / GRAIN))
     bw = _binarize(gray)
     # if the border is foreground, polarity is wrong -> flip
     border = np.concatenate([bw[0], bw[-1], bw[:, 0], bw[:, -1]])

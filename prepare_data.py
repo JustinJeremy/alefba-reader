@@ -2,6 +2,9 @@
 
   data/printed/<class>/<font>_<n>.png   the 32 letters in many fonts
   data/negative/32/<kind>_<n>.png       things that are NOT a Persian letter (class 32)
+  data/effects/<class>/<effect>_<n>.png handwritten and printed letters with ruled lines drawn through
+                                        them, film grain, or "blackout" (fading into black); see effects.py
+                                        (python prepare_data.py --effects-only rebuilds just this folder)
 
 Fonts: every .ttf/.otf in fonts/ plus the plain Arabic-script fonts that ship with Windows
 (Arial, Tahoma, Times New Roman, Segoe UI, ...). Windows fonts are read in place, never copied.
@@ -13,10 +16,13 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from common import LETTERS, preprocess
+from effects import EFFECTS
 
 SAMPLES_PER_FONT = 12
 OUT = os.path.join("data", "printed")
 NEG_OUT = os.path.join("data", "negative", "32")
+FX_OUT = os.path.join("data", "effects")
+FX_HANDWRITTEN, FX_PRINTED, FX_NEGATIVE = 50, 25, 150   # per letter and effect / per effect for non-letters
 NOT_A_LETTER = 32
 
 # plain text fonts only (outline / shadow / decorative Windows fonts would teach the wrong shapes)
@@ -212,6 +218,36 @@ def make_negatives(fonts, rng, n_shapes=2400, per_char=2):
     print(f"not-a-letter images: {n} characters + {n_shapes} shapes ({dropped} loop-like shapes dropped)")
 
 
+def make_effects(fonts, rng):
+    """data/effects/<class>/: letters (and some non-letters) with ruled lines, film grain or blackout.
+    They go through the same clean-up as every photo, so the model learns what is left after it."""
+    shutil.rmtree(FX_OUT, ignore_errors=True)
+    hand = os.path.join("data", "handwritten")
+    made = 0
+    for idx, ch in enumerate(LETTERS):
+        out = os.path.join(FX_OUT, str(idx))
+        os.makedirs(out)
+        files = sorted(glob.glob(os.path.join(hand, str(idx), "*")))
+        usable = [f for f in fonts if has_glyph(ImageFont.truetype(f, 60), ch)]
+        for name, effect in EFFECTS.items():
+            sources = [cv2.imread(f, cv2.IMREAD_GRAYSCALE) for f in rng.sample(files, min(FX_HANDWRITTEN, len(files)))]
+            for _ in range(FX_PRINTED if usable else 0):
+                r = np.random.RandomState(rng.randrange(2**31))
+                sources.append((255 - text_ink(rng.choice(usable), ch, r) * 255).astype(np.uint8))
+            for k, g in enumerate(sources):
+                if g is None:
+                    continue
+                img = effect(g, np.random.default_rng(rng.randrange(2**31)))
+                cv2.imwrite(os.path.join(out, f"{name}_{k}.png"), img); made += 1
+    neg = sorted(glob.glob(os.path.join(NEG_OUT, "*.png")))
+    os.makedirs(os.path.join(FX_OUT, str(NOT_A_LETTER)))
+    for name, effect in EFFECTS.items():                  # lines or grain alone never make a letter
+        for k, f in enumerate(rng.sample(neg, min(FX_NEGATIVE, len(neg)))):
+            img = effect(cv2.imread(f, cv2.IMREAD_GRAYSCALE), np.random.default_rng(rng.randrange(2**31)))
+            cv2.imwrite(os.path.join(FX_OUT, str(NOT_A_LETTER), f"{name}_{k}.png"), img); made += 1
+    print(f"effect images: {made} (ruled lines, film grain, blackout)")
+
+
 def main():
     fonts = find_fonts()
     if not fonts:
@@ -237,7 +273,12 @@ def main():
     if skipped:
         print(f"{len(skipped)} font/letter pairs skipped (glyph missing):", ", ".join(skipped[:20]))
     make_negatives(fonts, random.Random(1))
+    make_effects(fonts, random.Random(2))
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if "--effects-only" in sys.argv:                      # printed + not-a-letter images already made
+        make_effects(find_fonts(), random.Random(2))
+    else:
+        main()
