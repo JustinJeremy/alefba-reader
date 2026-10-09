@@ -54,7 +54,7 @@ def _data_url(img, ext=".png"):
 
 
 def _found_here(img, boxes, side=360):
-    """The user's photo, shrunk, with a maroon box around each part that was read (numbered when
+    """The user's photo, shrunk, with a green box around each part that was read (numbered when
     there are several letters, in reading order)."""
     if img.ndim == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
@@ -67,11 +67,11 @@ def _found_here(img, boxes, side=360):
     for n, box in enumerate(boxes, 1):
         x, y, w, h = (int(round(v * k)) for v in box)
         pad = max(3, int(0.06 * max(w, h)))
-        cv2.rectangle(small, (x - pad, y - pad), (x + w + pad, y + h + pad), (43, 30, 160), t, cv2.LINE_AA)   # maroon
+        cv2.rectangle(small, (x - pad, y - pad), (x + w + pad, y + h + pad), (63, 95, 31), t, cv2.LINE_AA)    # forest green (BGR)
         if len(boxes) > 1:
             org = (x - pad, max(14, y - pad - 4))
             cv2.putText(small, str(n), org, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 3, cv2.LINE_AA)
-            cv2.putText(small, str(n), org, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (43, 30, 160), 1, cv2.LINE_AA)
+            cv2.putText(small, str(n), org, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (63, 95, 31), 1, cv2.LINE_AA)
     return _data_url(small, ".jpg")
 
 

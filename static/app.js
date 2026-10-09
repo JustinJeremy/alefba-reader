@@ -368,6 +368,7 @@ function setSaveMode(tops) {
   $("truthMulti").replaceChildren(...tops.map((t, n) => {
     const s = $("truth").cloneNode(true);
     s.removeAttribute("id");
+    s.hidden = false;                  // (the single-letter list it is copied from is hidden right now)
     s.value = t.id;
     s.setAttribute("aria-label", "Letter " + (n + 1));
     return s;

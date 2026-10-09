@@ -231,7 +231,7 @@ After any change: **restart the app**, press **Ctrl+F5**, and run **`python -m p
 | Maximum upload size (20 MB) | `app.py` | `MAX_CONTENT_LENGTH` |
 | "Low confidence" warning (60%) | `static/app.js` | `t.confidence < 0.6` (2 places) |
 | "Not sure" note (50%) | `static/app.js` | `t.confidence < 0.5` |
-| Colours | `static/style.css` | top of the file: `--maroon`, `--gold`, `--cream`… |
+| Colours | `static/style.css` | the variables at the top of the file: `--primary` (banner, buttons), `--accent` (edges, bar), `--page`… |
 | When the two-column layout starts (960 px) | `static/style.css` | `@media (min-width: 960px)` |
 | Page text (headings, tips) | `templates/index.html` | the text itself |
 | Error messages | `predict.py` | `NO_LETTER`, `NO_LETTER_BLANK`, `NO_LETTER_EDGE`, `NOT_PERSIAN`, `MANY_LETTERS` |
