@@ -77,10 +77,10 @@ and our team's own handwriting.
 
 | Test | Score |
 |---|---|
-| Handwritten / printed / a font it never saw | 98.8% / 97.9% / 96.9% |
-| Our team's real handwriting photos (never used for training) | 108 of 110 (98.2%) |
+| Handwritten / printed / a font it never saw | 98.8% / 97.8% / 97.4% |
+| Our team's real handwriting photos (never used for training) | 109 of 110 (99.1%) |
 | Full alphabet sheets with one letter marked | 100% |
-| Extra test set (coloured, pastel, cartoon and Arabic letters) | 273 of 296 (92.2%) |
+| Extra test set (coloured, pastel, cartoon and Arabic letters) | 277 of 296 (93.6%) |
 | Speed | under half a second per photo (about 1 second for a full sheet) |
 
 **Limits:**

@@ -103,6 +103,8 @@ MULTI_MIN_CONF = 0.85  # and each such letter must be at least this sure. Measur
 SEVERAL_TRIES = 3    # how often a photo of several letters is looked at (again without the refused shapes)
 CAPTION_ROW = 0.65  # a row whose biggest shape is smaller than this (x the biggest letter) is caption text.
                     # Measured: caption letters 0.44-0.55; every row of real letters has one of 0.7 or more
+MIN_SHOW = 0.4      # a single letter read less surely than this is refused. Batch 13 model: right answers
+                    # 0.64 and up on every test set; the weakest guesses (0.13-0.31) were wrong or not letters
 MULTI_MAX_DISTANCE = 0.42  # stricter "unlike every letter" limit for each letter of a photo with several letters
                            # (more pieces = more chances that one only looks like a letter). Measured on the
                            # batch 10 model: multi_set letters up to 0.38, pieces of a game screenshot 0.46+
@@ -177,6 +179,8 @@ def _read_plain(img, topk, select, how):
     res, (view, box) = _read_one(img, topk)
     if select is None and _runs_off_edge(img, box):
         raise ValueError(NO_LETTER_EDGE)
+    if res[0][1] < MIN_SHOW:                       # a guess this weak is no answer (an app icon read at 13%)
+        raise ValueError(NO_LETTER)
     return [(res, (view, box))], how
 
 
@@ -191,12 +195,12 @@ def _inside_much_smaller(box, boxes):
 
 CARD_HOW = "the coloured letter next to the picture"
 CARD_SMALLER = 1.8  # the coloured letter is used when it is this much smaller than what was read,
-CARD_UNSURE = 0.9   # the plain reading was less sure than this (pastel letters, tiles: read surely, kept)
+CARD_UNSURE = 0.97   # the plain reading was less sure than this (pastel letters, tiles: read surely, kept)
 CARD_NOT_SLIVER = 0.35  # and it is at least this long (x what was read): not a shiny stripe or outline
 CARD_SAT = 90       # picture cards: a pixel is strongly coloured above this saturation (HSV, 0-255); the
                     # pale disc behind the picture and letter stays below it
 CARD_MIN = 0.2      # a letter is at least this big (x the photo's longer side)
-CARD_CONF = 0.85    # the letter must be read at least this surely
+CARD_CONF = 0.7    # the letter must be read at least this surely
 CARD_WORK = 400     # bigger photos are looked at this size (longer side), for speed
 
 
@@ -269,15 +273,24 @@ def _read_several(img, topk):
     them: small letters were measured against them and dropped as dots, and a dot was not joined to its
     letter (notepad photo 30-18-10-21). Photos where every shape is a letter are read in one go."""
     refused, read = set(), {}                      # boxes the model refused / read before (box -> result)
+    read_any, last_tried = False, set()
     lined = [None]                                 # the photo without ruled lines, made when first needed
     for _ in range(SEVERAL_TRIES):
         letters = _several_candidates(img, refused)
         if letters is None:
             return None
-        out, before = [], len(refused)
+        before = len(refused)
         for letter in letters:
             if letter.box not in read:
                 read[letter.box] = _read_candidate(img, letter.box, topk, lined)
+        if not read_any and not any(read[l.box] for l in letters):
+            return None                            # the first look found no letter at all: not a photo of
+        read_any = True                            # letters (block puzzle pieces, batch 13), however sure later
+        out = []                                   # looks are about the shapes that are left
+        for letter in letters:
+            if read[letter.box] is None and letter.box not in last_tried:   # a photo of letters: try the
+                last_tried.add(letter.box)                                    # refused shapes once more
+                read[letter.box] = _read_candidate(img, letter.box, topk, lined, last=True)
             if read[letter.box] is None:
                 refused.add(letter.box)
             else:
@@ -303,7 +316,7 @@ def _several_candidates(img, skip):
     return letters
 
 
-def _read_candidate(img, box, topk, lined):
+def _read_candidate(img, box, topk, lined, last=False):
     """One shape of a photo of several letters -> (top-k, (view, box in img)), or None when refused."""
     H, W = img.shape[:2]
     x, y, w, h = box
@@ -311,12 +324,28 @@ def _read_candidate(img, box, topk, lined):
     x0, y0 = max(0, x - p), max(0, y - p)          # he cut tightly was read as "not a letter"); a neighbour
                                                    # peeking in touches the crop edge and is dropped
     x1, y1 = min(W, x + w + p), min(H, y + h + p)
-    got = _read_letter(img[y0:y1, x0:x1], topk)
-    if got is None:                                # a ruled line through a small letter: in the small crop
+    got = None if last else _read_letter(img[y0:y1, x0:x1], topk)
+    if got is None and not last:                   # a ruled line through a small letter: in the small crop
         if lined[0] is None:                       # the line is too short to be recognised as one
             lined[0] = _without_ruled_lines(img)
         got = _read_letter(lined[0][y0:y1, x0:x1], topk)
-    if got is None:
+        if got is None:
+            return None
+    if got is None:                       # last try: the letter cut from the cleaned WHOLE photo. A
+        if len(lined) < 2:                         # ruled line through a small letter (he as a circle) is
+            try:                                   # removed there, but not in the small crop or above
+                lined.append(_prepare_bw(img))
+            except ValueError:
+                lined.append(None)
+        if lined[1] is not None:
+            k = lined[1].shape[1] / W
+            cx0, cy0 = int(round(x0 * k)), int(round(y0 * k))
+            mask = lined[1][cy0:int(round(y1 * k)), cx0:int(round(x1 * k))]
+            if mask.any():
+                got = _read_letter(cv2.cvtColor(255 - mask, cv2.COLOR_GRAY2BGR), topk)
+                if got is not None:
+                    res, (view, (bx, by, bw, bh)) = got
+                    return res, (view, (x0 + int(bx / k), y0 + int(by / k), int(bw / k), int(bh / k)))
         return None
     res, (view, (bx, by, bw, bh)) = got
     return res, (view, (bx + x0, by + y0, bw, bh))

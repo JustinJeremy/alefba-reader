@@ -20,7 +20,7 @@ The repository is private: ask JJ (JustinJeremy) to add you as a collaborator fi
    `git clone https://github.com/JustinJeremy/alefba-reader.git alefba_reader`
 4. Open the folder: *File → Open Folder… → Downloadslefba_reader*, then open a new terminal.
 5. Install the libraries (a few minutes, torch is big): `pip install -r requirements.txt`
-6. Check it works: `python -m pytest` (about 4 min, all should pass; 1 "xfailed" is fine).
+6. Check it works: `python -m pytest` (about 4 min, all should pass).
 7. Start the app: `python app.py`, open `http://127.0.0.1:5000`, upload a photo, press *Read letter*.
 
 The trained model (`persian_cnn.pt`) comes with the download, so nothing has to be trained.
@@ -84,7 +84,7 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 - *"Not a letter":* 5,384 images (Latin letters, digits, shapes)
 - *Hard copies:* 7,650 letters (and non-letters) with ruled lines, film grain or "blackout"
   (light letter fading into black), made by `effects.py`
-- *Team handwriting:* 125 letters from Mark's, Kaye's and Ethan's clear sheets
+- *Team handwriting:* 125 letters (dim photos now cleaned correctly) from Mark's, Kaye's and Ethan's clear sheets
   (`member_handwriting/`), each shown 15 times per round
 - *Held out:* the Calibri family is never trained on, to measure accuracy on an unseen font
 
@@ -93,18 +93,18 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Measure | Result |
 |---|---|
 | Handwritten | 98.8% |
-| Printed | 97.9% |
-| Unseen font | 96.9% |
-| Letters with lines / grain / blackout | 99.0% |
-| Real letters wrongly refused | 0.11% |
+| Printed | 97.8% |
+| Unseen font | 97.4% |
+| Letters with lines / grain / blackout | 98.7% |
+| Real letters wrongly refused | 0.13% |
 | Speed | ~3 ms per image (model only); whole app: one letter ~0.1-0.3 s, marked sheet ~1 s (was ~2 s) |
-| Team handwriting (members' earlier sheets, never trained on) | 104/107 (97.2%) |
-| Photos of several letters (`multi_set`) | 24/25 |
-| All team photos (`real_photos`, incl. notepad photos of several letters) | 108/110 (98.2%) |
+| Team handwriting (members' earlier sheets, never trained on) | 98/99 (99.0%); only Ethan's pe missed |
+| Photos of several letters (`multi_set`) | 25/25 |
+| All team photos (`real_photos`, incl. notepad photos of several letters) | 109/110 (99.1%) |
 | Rehearsal, marked sheets | 100% |
-| Hard set (incl. ruled lines, film grain, blackout) | 383/384 |
-| BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 273/296 (92.2%); whole picture cards 17/28 (was 4/28) |
-| Automated tests | 351 (+1 known miss) |
+| Hard set (incl. ruled lines, film grain, blackout) | 384/384 |
+| BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 277/296 (93.6%); whole picture cards 17/28 (was 4/28) |
+| Automated tests | 352, no known misses |
 
 The letters must be upright: upside-down, sideways (90°) or mirrored letters are not read
 (small tilts up to about 10° are fine). Turned around, many letters become other letters
@@ -158,8 +158,7 @@ reading order.
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `351 passed, 1 xfailed`. The "xfailed" is a known miss (Mark's ق is read as ض
-in a row of two letters), which is fine.
+Expected result: `352 passed`.
 
 ### Score the test sets
 
@@ -301,8 +300,9 @@ After any change: *restart the app*, press *Ctrl+F5*, and run *`python -m pytest
 | When grainy photos get smoothed | `common.py` | `GRAIN = 2.5` (lower = smooths more photos) |
 | Photos enlarged before clean-up (under 256 px) | `common.py` | `SMALL = 256` |
 | Speed of the lighting clean-up on big photos | `common.py` | `BG_SHRINK = 4` (paper brightness measured on a 4x smaller copy; 1 = old, slower way) |
-| Picture cards (coloured letter next to a picture) | `predict.py` | `CARD_UNSURE = 0.9` (used only when the plain reading is less sure), `CARD_CONF = 0.85`, `CARD_SAT = 90` |
+| Picture cards (coloured letter next to a picture) | `predict.py` | `CARD_UNSURE = 0.97` (used only when the plain reading is less sure), `CARD_CONF = 0.7`, `CARD_SAT = 90` |
 | Phone-sharpening halo, notebook ticks | `common.py` | `RIM = 5` (1 = off), `TICK_ROW = 3`, `TICK_GAP = 5` |
+| Refuse weak guesses | `predict.py` | `MIN_SHOW = 0.4` (a single letter read less surely than this gets "No Persian letter found") |
 | "Unlike every letter" refusal | `predict.py` | `MAX_DISTANCE = 0.65` (higher = refuses less); `MULTI_MAX_DISTANCE = 0.42` for photos of several letters |
 | Most letters read from one photo (20) | `predict.py` | `MAX_LETTERS` |
 | Splitting a photo into letters | `segment.py` | `DOT_REACH` (how far a dot may be), `PIECE_GAP` (pieces of one letter), `MIN_SIZE` (smallest letter vs. the biggest) |
