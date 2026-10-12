@@ -17,8 +17,9 @@ The Arabic sets use the Arabic kaf (ك) and yeh (ي); they are scored as kaf and
 Score them:   python score_testset.py bus_test_set
 
 Notes
-- On a card with a picture, the app cannot tell which shape is the letter: a carrot or a chick looks
-  as much like a letter to the model as the letter does. Drag a box around the letter (or crop the
-  photo) and it is read like any other photo (cartoon_with_pictures_boxed).
+- On a card with a picture, each shape of one strong colour is read on its own and the surest letter
+  is kept, when the plain reading of the whole card is unsure (batch 13: 17/28, was 4/28). For the rest,
+  drag a box around the letter (or crop the photo) and it is read like any other photo
+  (cartoon_with_pictures_boxed).
 - The old manuscript photo in the screenshots (joined-up handwriting) is not in here: the app reads
   separate letters, not joined words.

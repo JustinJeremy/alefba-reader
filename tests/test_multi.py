@@ -7,9 +7,9 @@ from predict import read_photo
 from segment import find_letters
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# Mark writes qaf with a long open tail: read as zad, alone too (real_photos/Mark/23_qaf_sheet.jpg).
-# A model miss, not a splitting one: the row is still split into its two letters correctly.
-KNOWN = {"22-23_mark_row9.jpg": "Mark's qaf read as zad (also alone); needs more qaf in this style"}
+# Mark's qaf (long open tail) was read as zad until the batch 13 model, trained on his qaf sheet cleaned
+# properly (a dim photo had been turned inside out). Add photos the model misses here, with the reason.
+KNOWN = {}
 MULTI = [pytest.param(f, marks=pytest.mark.xfail(strict=True, reason=KNOWN[os.path.basename(f)]))
          if os.path.basename(f) in KNOWN else f
          for f in sorted(glob.glob(os.path.join(ROOT, "multi_set", "*.jpg")))]
@@ -74,3 +74,10 @@ def test_small_letters_next_to_a_shadow_and_form_box(name):
     path = os.path.join(ROOT, "real_photos", "multi_letter_photos", name)
     letters, how = read_photo(load_image(path))
     assert [res[0][0] for res, _ in letters] == truth(path)
+
+
+def test_dal_on_ticked_notebook_paper():
+    # Kaye's dal: phone sharpening left a bright rim (grey halo -> striped blob) and the notebook's printed
+    # ticks along the top line looked like zal's dot
+    letters, _ = read_photo(load_image(os.path.join(ROOT, "real_photos", "Kaye", "09_dal_sheet.jpg")))
+    assert letters[0][0][0][0] == 9

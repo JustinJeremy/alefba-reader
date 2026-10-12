@@ -55,10 +55,10 @@ def test_hollow_dots_are_filled():
     assert np.array_equal(_fill_dots(big), big)
 
 
-# fewest right answers per folder (batch 11 results; before batch 11: 28, 26, 11, 15, -, 16, 19, 32, 32).
-# cartoon_with_pictures (whole cards, 4/28) is not checked: the app cannot tell the letter from the picture
-MIN_RIGHT = {"arabic_print": 28, "arabic_on_disc": 28, "cartoon_white": 25, "cartoon_background": 25,
-             "cartoon_with_pictures_boxed": 21, "pastel_tight": 32, "pastel_tiles": 32,
+# fewest right answers per folder (batch 13 results; before batch 11: 28, 26, 11, 15, -, -, 16, 19, 32, 32).
+# cartoon_with_pictures (whole cards): 4/28 until batch 13, when each coloured shape began to be read on its own
+MIN_RIGHT = {"arabic_print": 28, "arabic_on_disc": 28, "cartoon_white": 26, "cartoon_background": 26,
+             "cartoon_with_pictures": 17, "cartoon_with_pictures_boxed": 24, "pastel_tight": 32, "pastel_tiles": 32,
              "coloured_tiles_tight": 32, "coloured_tiles": 32}
 
 

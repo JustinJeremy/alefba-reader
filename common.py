@@ -192,13 +192,18 @@ def _grain(gray):
 
 BG_SHRINK = 4      # the paper brightness is a smooth gradient: on big photos (BG_SHRINK_FROM px or more on the
 BG_SHRINK_FROM = 400   # short side) it is measured on a 4x smaller copy, ~16x less work (marked sheets)
+RIM = 5            # phone sharpening leaves a thin bright rim around strokes. Taken as paper, it made a grey
+                   # halo that was thresholded into stripes (real_photos/Kaye/09_dal_sheet.jpg read as zal).
+                   # Pen-on-paper photos only: on coloured cartoon cards it shuffled the results (bus_test_set)
 
 
-def _paper_brightness(g, k):
+def _paper_brightness(g, k, rim=1):
     """Brightness of the paper around each pixel (ink ignored): the brightest pixel in a k-wide circle,
     smoothed. On big photos measured on a smaller copy (taking the brightest pixel of each 4x4 block,
     so thin ink still disappears) and scaled back up."""
     h, w = g.shape
+    if rim > 1:
+        g = cv2.erode(g, np.ones((rim, rim), np.uint8))  # thin bright rims (phone sharpening) are not paper
     if min(h, w) < BG_SHRINK_FROM:
         bg = cv2.dilate(g, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
         return cv2.GaussianBlur(bg, (0, 0), k / 3)
@@ -210,13 +215,22 @@ def _paper_brightness(g, k):
     return cv2.resize(bg, (w, h), interpolation=cv2.INTER_LINEAR)
 
 
-def _flatten_lighting(gray):
+def _light_on_dark(gray):
+    """Light letter on dark paper (chalk on a board)? The paper is dark, AND the letter is lighter than it:
+    a dim photo of dark ink on grey paper (Mark's qaf sheet, paper at grey 108) has its ink far below the
+    paper, chalk lies far above it. (Before, every photo with dark paper was treated as chalk and
+    turned inside out.)"""
+    lo, med, hi = np.percentile(gray, [1, 50, 99])
+    return med < 110 and hi - med > med - lo
+
+
+def _flatten_lighting(gray, rim=1):
     """Even out shadows / gradients so one global threshold works. Does nothing on evenly lit images."""
-    inv = np.median(gray) < 110                    # light letter on dark paper -> work on the inverse
+    inv = _light_on_dark(gray)                     # light letter on dark paper -> work on the inverse
     g = 255 - gray if inv else gray
     h, w = g.shape
     k = max(15, int(max(h, w) * 0.12)) | 1         # window must be wider than the strokes
-    bg = _paper_brightness(g, k)                   # brightness of the paper around each pixel (ink ignored)
+    bg = _paper_brightness(g, k, rim)              # brightness of the paper around each pixel (ink ignored)
     # Judge the lighting from this paper estimate, not from an Otsu split: with a shadow, Otsu
     # separates lit paper from shaded paper and the lit half alone looks evenly lit.
     if np.subtract(*np.percentile(bg, [95, 5])) < 25:
@@ -415,7 +429,7 @@ def _binary_gray(img_bgr, colour=False):
         s = SMALL / max(h, w)
         gray = cv2.resize(gray, (round(w * s), round(h * s)), interpolation=cv2.INTER_CUBIC)
     gray = _ignore_margin(gray)
-    gray = _flatten_lighting(gray)
+    gray = _flatten_lighting(gray, RIM if img_bgr.ndim == 2 or not colourful(img_bgr) else 1)
     grain = _grain(gray)
     gray = cv2.medianBlur(gray, 3)
     if grain > GRAIN:                              # film grain / camera noise: smooth it before thresholding
@@ -436,10 +450,45 @@ def _strip_all_lines(bw, gray=None):
     return np.ascontiguousarray(_strip_ruled_lines(np.ascontiguousarray(bw.T), gt).T)
 
 
+TICK_ROW = 3       # at least this many small marks, evenly spaced along one ruled line, are the paper's
+TICK_GAP = 5       # printed ticks (spaced at least TICK_GAP x their size apart), not dots: a letter's dots are
+                   # close together. A tick above Kaye's dal made it zal (real_photos/Kaye/09_dal_sheet.jpg)
+
+
+def _remove_line_ticks(bw, lines):
+    """Erase the small printed ticks that some notebooks have along their ruled lines.
+    bw: the mask without ruled lines; lines: the ruled lines that were taken out."""
+    if not lines.any():
+        return bw
+    n, lab, st, _ = cv2.connectedComponentsWithStats(bw, connectivity=8)
+    near = cv2.dilate(lines, np.ones((9, 9), np.uint8)) > 0     # ticks may hang a few px off the line
+    body = st[1:, 4].max() if n > 1 else 0
+    marks = [i for i in range(1, n) if st[i][4] < 0.1 * body and near[lab == i].any()]
+    out = bw
+    used = set()
+    for i in sorted(marks, key=lambda i: st[i][0]):
+        if i in used:
+            continue
+        size = max(st[i][2], st[i][3])
+        cy = st[i][1] + st[i][3] / 2
+        row = [j for j in marks if j not in used and abs(st[j][1] + st[j][3] / 2 - cy) <= max(3, size)]
+        if len(row) < TICK_ROW:
+            continue
+        xs = np.sort([st[j][0] + st[j][2] / 2 for j in row])
+        gaps = np.diff(xs)
+        if gaps.min() >= TICK_GAP * size and gaps.std() <= 0.2 * gaps.mean():
+            out = out.copy() if out is bw else out
+            out[np.isin(lab, row)] = 0
+            used.update(row)
+    return out
+
+
 def _prepare_bw(img_bgr, colour=False):
     """Image -> clean binary mask (letter = 255) before the main-letter selection."""
     bw, gray = _binary_gray(img_bgr, colour)
-    return _remove_edge_clutter(_remove_frames(_strip_all_lines(bw, gray)))
+    clean = _strip_all_lines(bw, gray)
+    clean = _remove_line_ticks(clean, ((bw > 0) & (clean == 0)).astype(np.uint8))
+    return _remove_edge_clutter(_remove_frames(clean))
 
 
 def ruled_lines(img_bgr):
