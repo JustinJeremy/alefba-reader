@@ -147,15 +147,118 @@ def read_photo(img, topk=3, select=None):
             pass
     if select is None and marks.many_letters(img):
         raise ValueError(MANY_LETTERS if looks_persian(img) else NOT_PERSIAN)
+    try:
+        letters, how = _read_plain(img, topk, select, how)
+    except ValueError:
+        letters = None
+        if select is None and colourful(img):          # nothing found: maybe a coloured letter beside a picture
+            card = _read_picture_card(img, topk)
+            if card is not None:
+                return [_moved(card, ox, oy)], CARD_HOW
+        raise
+    if select is None and colourful(img):
+        card = _read_picture_card(img, topk)
+        if card is not None and min(r[0][1] for r, _ in letters) < CARD_UNSURE                 and _inside_much_smaller(card[1][1], [b for _, (_, b) in letters]):
+            return [_moved(card, ox, oy)], CARD_HOW    # the reading swallowed the picture with the letter
+    return [_moved(l, ox, oy) for l in letters], how
+
+
+def _moved(letter, ox, oy):
+    res, (view, (bx, by, bw, bh)) = letter
+    return res, (view, (bx + ox, by + oy, bw, bh))
+
+
+def _read_plain(img, topk, select, how):
+    """read_photo after marks: a few separate letters, or one letter. Boxes relative to img."""
     several = _read_several(img, topk)
     if several:
         n = len(several)
-        how = f"{n} letters, right to left" + (" (your selection)" if select is not None else "")
-        return [(res, (view, (bx + ox, by + oy, bw, bh))) for res, (view, (bx, by, bw, bh)) in several], how
-    res, (view, (bx, by, bw, bh)) = _read_one(img, topk)
-    if select is None and _runs_off_edge(img, (bx, by, bw, bh)):
+        return several, f"{n} letters, right to left" + (" (your selection)" if select is not None else "")
+    res, (view, box) = _read_one(img, topk)
+    if select is None and _runs_off_edge(img, box):
         raise ValueError(NO_LETTER_EDGE)
-    return [(res, (view, (bx + ox, by + oy, bw, bh)))], how
+    return [(res, (view, box))], how
+
+
+def _inside_much_smaller(box, boxes):
+    """Does box lie inside what was read (all boxes together), and is it much smaller than that?"""
+    x0 = min(b[0] for b in boxes); y0 = min(b[1] for b in boxes)
+    x1 = max(b[0] + b[2] for b in boxes); y1 = max(b[1] + b[3] for b in boxes)
+    m = 0.1 * max(box[2], box[3])
+    inside = box[0] >= x0 - m and box[1] >= y0 - m and box[0] + box[2] <= x1 + m and box[1] + box[3] <= y1 + m
+    return inside and (x1 - x0) * (y1 - y0) >= CARD_SMALLER * box[2] * box[3]         and max(box[2], box[3]) >= CARD_NOT_SLIVER * max(x1 - x0, y1 - y0)
+
+
+CARD_HOW = "the coloured letter next to the picture"
+CARD_SMALLER = 1.8  # the coloured letter is used when it is this much smaller than what was read,
+CARD_UNSURE = 0.9   # the plain reading was less sure than this (pastel letters, tiles: read surely, kept)
+CARD_NOT_SLIVER = 0.35  # and it is at least this long (x what was read): not a shiny stripe or outline
+CARD_SAT = 90       # picture cards: a pixel is strongly coloured above this saturation (HSV, 0-255); the
+                    # pale disc behind the picture and letter stays below it
+CARD_MIN = 0.2      # a letter is at least this big (x the photo's longer side)
+CARD_CONF = 0.85    # the letter must be read at least this surely
+CARD_WORK = 400     # bigger photos are looked at this size (longer side), for speed
+
+
+def _colour_shapes(img):
+    """Shapes of one strong colour (with the small dots of any colour above / below them) -> masks.
+    A cartoon letter is one colour; the picture next to it is many colours with outlines."""
+    hsv = cv2.cvtColor(np.ascontiguousarray(img[:, :, :3]), cv2.COLOR_BGR2HSV)
+    H, W = hsv.shape[:2]
+    sat = ((hsv[:, :, 1] > CARD_SAT) & (hsv[:, :, 2] > 60)).astype(np.uint8)
+    hue = hsv[:, :, 0].astype(int)                 # 0..179 around the colour circle
+    ns, slab, sst, _ = cv2.connectedComponentsWithStats(sat, connectivity=8)
+    shapes = []
+    for c in range(0, 180, 10):
+        d = np.minimum(abs(hue - c), 180 - abs(hue - c))
+        m = (sat & (d <= 12)).astype(np.uint8)
+        if m.sum() < 0.01 * H * W:
+            continue
+        m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))   # shiny highlights on the letter
+        n, lab, st, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
+        for i in range(1, n):
+            x, y, w, h, a = st[i]
+            s = max(w, h)
+            if s < CARD_MIN * max(H, W) or a < 0.12 * w * h:      # small bits, thin lines and outlines
+                continue
+            shape = lab == i
+            if any((shape & o).sum() > 0.8 * shape.sum() for o in shapes):  # (found in the next colour too)
+                continue
+            full = shape.copy()
+            for j in range(1, ns):                 # its dots: small, within its width, above or below
+                bx, by, bw, bh, _ = sst[j]
+                if max(bw, bh) < 0.35 * s and bx >= x - 0.15 * s and bx + bw <= x + w + 0.15 * s                         and by >= y - 0.6 * s and by + bh <= y + h + 0.6 * s:
+                    full |= slab == j
+            shapes.append(full)
+    return shapes, sat
+
+
+def _read_picture_card(img, topk, with_mask=False):
+    """A coloured letter next to a picture (a children's alphabet card) -> (top-k, (view, box)) or None.
+    Each shape of one strong colour is drawn black on white and read on its own; the surest letter wins,
+    but only when it is sure (CARD_CONF). read_photo decides whether to use it."""
+    k = min(1.0, CARD_WORK / max(img.shape[:2]))
+    small = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if k < 1 else img
+    shapes, _ = _colour_shapes(small)
+    best = None
+    for m in shapes:
+        drawn = np.full(m.shape + (3,), 255, np.uint8)
+        drawn[m] = 0
+        drawn = cv2.copyMakeBorder(drawn, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+        try:
+            res, (view, _) = _read_one(drawn, topk)
+        except ValueError:
+            continue
+        if res[0][0] == 0:                     # alef is one stroke: any strip of colour looks like it
+            continue
+        if res[0][1] >= CARD_CONF and (best is None or res[0][1] > best[0][0][1]):
+            best = (res, view, m)
+    if best is None:
+        return None
+    res, view, m = best
+    ys, xs = np.nonzero(m)
+    box = tuple(int(round(v / k)) for v in (xs.min(), ys.min(), xs.max() - xs.min() + 1, ys.max() - ys.min() + 1))
+    return (res, (view, box), m) if with_mask else (res, (view, box))
 
 
 def _read_several(img, topk):

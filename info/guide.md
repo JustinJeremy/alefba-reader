@@ -54,10 +54,10 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Speed | ~3 ms per image (model only); whole app: one letter ~0.1-0.3 s, marked sheet ~1 s (was ~2 s) |
 | Team handwriting (members' earlier sheets, never trained on) | 104/107 (97.2%) |
 | Photos of several letters (`multi_set`) | 24/25 |
-| All team photos (`real_photos`, incl. notepad photos of several letters) | 107/110 (97.3%) |
+| All team photos (`real_photos`, incl. notepad photos of several letters) | 108/110 (98.2%) |
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 383/384 |
-| BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 259/296 (87.5%); without the whole picture cards 255/268 (95.1%) |
+| BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 273/296 (92.2%); whole picture cards 17/28 (was 4/28) |
 | Automated tests | 349 (+1 known miss) |
 
 The letters must be upright: upside-down, sideways (90°) or mirrored letters are not read
@@ -253,6 +253,8 @@ After any change: *restart the app*, press *Ctrl+F5*, and run *`python -m pytest
 | When grainy photos get smoothed | `common.py` | `GRAIN = 2.5` (lower = smooths more photos) |
 | Photos enlarged before clean-up (under 256 px) | `common.py` | `SMALL = 256` |
 | Speed of the lighting clean-up on big photos | `common.py` | `BG_SHRINK = 4` (paper brightness measured on a 4x smaller copy; 1 = old, slower way) |
+| Picture cards (coloured letter next to a picture) | `predict.py` | `CARD_UNSURE = 0.9` (used only when the plain reading is less sure), `CARD_CONF = 0.85`, `CARD_SAT = 90` |
+| Phone-sharpening halo, notebook ticks | `common.py` | `RIM = 5` (1 = off), `TICK_ROW = 3`, `TICK_GAP = 5` |
 | "Unlike every letter" refusal | `predict.py` | `MAX_DISTANCE = 0.65` (higher = refuses less); `MULTI_MAX_DISTANCE = 0.42` for photos of several letters |
 | Most letters read from one photo (20) | `predict.py` | `MAX_LETTERS` |
 | Splitting a photo into letters | `segment.py` | `DOT_REACH` (how far a dot may be), `PIECE_GAP` (pieces of one letter), `MIN_SIZE` (smallest letter vs. the biggest) |
