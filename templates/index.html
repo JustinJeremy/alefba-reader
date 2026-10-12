@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Persian letter reader</title>
+  <title>Alefba Reader - Persian letters</title>
   <link rel="icon" href="{{ url_for('static', filename='icon.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -12,7 +12,7 @@
 
 <!-- title banner -->
 <header class="banner">
-  <h1>Persian Letter Reader</h1>
+  <h1>Alefba Reader</h1>
   <p class="fa-word">
     <span lang="fa">الفبا</span>
     <small>alefbâ &middot; &ldquo;alphabet&rdquo; in Persian</small>
@@ -26,7 +26,8 @@
     <h2>Your photo</h2>
     <p class="lead">Upload or photograph one Persian letter to get its English spelling. A whole
        alphabet sheet works too if one letter is circled, highlighted or pointed at with an arrow,
-       or if you drag a box around it.</p>
+       or if you drag a box around it. Keep the letter upright: upside-down, sideways or mirrored
+       letters are not read correctly.</p>
     <div id="drop" tabindex="0" role="button" aria-label="Choose an image">
       <span id="hint">
         <span class="big-hint" aria-hidden="true">&#8681;</span>

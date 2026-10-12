@@ -147,6 +147,8 @@ def _strip_broken_lines(bw, gray=None):
         gm[ys[~near], xs[~near]] = False
         ys, xs = ys[near], xs[near]
         cols = np.unique(xs)
+        if len(cols) < 2:                          # nothing left along the line (a curved stroke whose
+            continue                               # middle is off the fitted line): not a ruled line
         if gray is not None:
             fit = np.polyfit(xs, ys, 1)
             if not _ridge_across(gray, fit, tmax, ink):
@@ -240,7 +242,34 @@ def _remove_frames(bw):
         centre = m[h // 4: 3 * h // 4, w // 4: 3 * w // 4].mean()
         if sum(s >= 0.85 for s in sides) >= 3 and centre < 0.02:   # ring-shaped: a frame, not a letter
             out[lab == i] = 0
-    return out
+    return _remove_rings(out)
+
+
+def _remove_rings(bw):
+    """Erase a closed ring around all the other ink: the edge of a coloured disc, circle or badge
+    the letter is printed on. A letter's own loop (he, mim, ta) never has the rest of the letter
+    inside it, and an open bowl (nun, jim) is not closed."""
+    n, lab, st, _ = cv2.connectedComponentsWithStats(bw, connectivity=8)
+    if n < 3:
+        return bw
+    H, W = bw.shape
+    for i in range(1, n):
+        x, y, w, h, a = st[i]
+        if w < 0.5 * W or h < 0.5 * H:
+            continue
+        ring = (lab[y:y + h, x:x + w] == i).astype(np.uint8)
+        flood = cv2.copyMakeBorder(ring, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+        cv2.floodFill(flood, None, (0, 0), 2)                    # flood the outside: what stays 0 is the hole
+        hole = flood[1:-1, 1:-1] == 0
+        if hole.sum() < 0.5 * (hole.sum() + a):
+            continue                                             # mostly ink: not a thin ring
+        others = (bw[y:y + h, x:x + w] > 0) & (ring == 0)
+        rest = int((bw > 0).sum()) - int(a)
+        if rest > 0 and (others & hole).sum() >= 0.95 * rest:
+            bw = bw.copy()
+            bw[lab == i] = 0
+            return bw
+    return bw
 
 
 # how far (as a fraction of the letter size) a dot / broken piece may sit from the letter body
@@ -319,8 +348,35 @@ def _binary(img_bgr):
     return _binary_gray(img_bgr)[0]
 
 
-def _binary_gray(img_bgr):
-    """-> (raw binary mask, grey image of the same size where ink is dark)."""
+COLOUR_INK = 2.5   # colour clean-up: grey levels of "ink" per unit of colour difference (Lab a/b) from
+                   # the paper. A pastel letter (~35 units from white paper) becomes as dark as grey 165
+
+
+def colourful(img_bgr):
+    """True when some of the photo is clearly coloured (a coloured letter, a picture, coloured paper)."""
+    if img_bgr is None or img_bgr.ndim != 3:
+        return False
+    small = cv2.resize(img_bgr[:, :, :3], (64, 64), interpolation=cv2.INTER_AREA)
+    return float(np.percentile(cv2.cvtColor(small, cv2.COLOR_BGR2HSV)[:, :, 1], 95)) >= 80
+
+
+def _colour_gray(bgr, gray):
+    """Grey image in which coloured parts count as ink too: each pixel is as dark as it is darker OR
+    more differently coloured than the paper (the photo edge). A yellow, pink or light-blue letter is
+    hardly darker than white paper, and a dot may be another colour than its letter: in plain grey
+    both nearly vanish, here they become ink. Shadows change brightness, not colour, so they stay paper."""
+    lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    ab = lab[:, :, 1:]
+    m = max(2, int(0.02 * max(gray.shape)))
+    edge = np.concatenate([ab[:m].reshape(-1, 2), ab[-m:].reshape(-1, 2), ab[:, :m].reshape(-1, 2), ab[:, -m:].reshape(-1, 2)])
+    paper = np.median(edge, axis=0)
+    diff = np.sqrt(((ab - paper) ** 2).sum(2))
+    return np.minimum(gray, np.clip(255 - COLOUR_INK * diff, 0, 255).astype(np.uint8))
+
+
+def _binary_gray(img_bgr, colour=False):
+    """-> (raw binary mask, grey image of the same size where ink is dark).
+    colour=True: coloured parts count as ink as well as dark ones (see _colour_gray)."""
     if img_bgr is None or img_bgr.size == 0:
         raise ValueError("Image is empty or unreadable.")
     if img_bgr.ndim == 3:
@@ -328,6 +384,8 @@ def _binary_gray(img_bgr):
             a = img_bgr[:, :, 3:4] / 255.0
             img_bgr = (img_bgr[:, :, :3] * a + 255 * (1 - a)).astype(np.uint8)
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        if colour:
+            gray = _colour_gray(img_bgr, gray)
     else:
         gray = img_bgr
     # shrink huge photos so Otsu/blur behave consistently
@@ -360,9 +418,9 @@ def _strip_all_lines(bw, gray=None):
     return np.ascontiguousarray(_strip_ruled_lines(np.ascontiguousarray(bw.T), gt).T)
 
 
-def _prepare_bw(img_bgr):
+def _prepare_bw(img_bgr, colour=False):
     """Image -> clean binary mask (letter = 255) before the main-letter selection."""
-    bw, gray = _binary_gray(img_bgr)
+    bw, gray = _binary_gray(img_bgr, colour)
     return _remove_edge_clutter(_remove_frames(_strip_all_lines(bw, gray)))
 
 
@@ -457,13 +515,42 @@ def _drop_captions(kept):
     return out
 
 
-def preprocess(img_bgr: np.ndarray, strict: bool = False, captions: bool = False, info: dict = None) -> np.ndarray:
+DOT_SIZE = 0.25    # a piece smaller than this (x the letter body's area) is a dot. Cartoon dots are big
+                   # (a ring-shaped test dot measured 0.16); pieces of a broken letter are 0.3+ (KEEP)
+
+
+def _fill_dots(bw):
+    """Fill the hole in hollow dots: a shiny cartoon dot (white highlight in it), or a dot written as
+    a small circle. The model knows dots as solid blobs; a ring-shaped one was read as a small letter."""
+    n, lab, st, _ = cv2.connectedComponentsWithStats(bw, connectivity=8)
+    if n < 3:
+        return bw
+    body = int(st[1:, 4].max())
+    out = bw
+    for i in range(1, n):
+        x, y, w, h, a = st[i]
+        if a >= DOT_SIZE * body:
+            continue
+        piece = cv2.copyMakeBorder((lab[y:y + h, x:x + w] == i).astype(np.uint8), 1, 1, 1, 1,
+                                   cv2.BORDER_CONSTANT, value=0)
+        cv2.floodFill(piece, None, (0, 0), 2)
+        hole = piece[1:-1, 1:-1] == 0
+        if hole.any():
+            out = out.copy() if out is bw else out
+            out[y:y + h, x:x + w][hole] = 255
+    return out
+
+
+def preprocess(img_bgr: np.ndarray, strict: bool = False, captions: bool = False, info: dict = None,
+               colour: bool = False) -> np.ndarray:
     """BGR/gray image -> float32 SIZE x SIZE array, white letter on black, [0,1].
-    If a dict is passed as info, info["box"] = (x, y, w, h) of the letter in the input image."""
-    bw = _prepare_bw(img_bgr)
+    If a dict is passed as info, info["box"] = (x, y, w, h) of the letter in the input image.
+    colour=True: coloured parts count as ink too (a pastel or cartoon letter, see _colour_gray)."""
+    bw = _prepare_bw(img_bgr, colour)
     bw = _keep_main_letter(bw, KEEP_STRICT if (strict or captions) else KEEP)
     if captions:                                   # strict crop, plus any caption text it still left
         bw = _drop_captions(bw)
+    bw = _fill_dots(bw)
     pts = cv2.findNonZero(bw)
     if pts is None:
         raise ValueError("No letter found (image looks blank).")

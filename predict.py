@@ -6,7 +6,7 @@ import torch
 import marks
 from segment import find_letters
 from common import (PersianCNN, preprocess, caption_suspect, load_image, _binary, _prepare_bw, _grain,
-                    _flatten_lighting, SIZE,
+                    _flatten_lighting, colourful, ruled_lines, SIZE,
                     LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, NOT_A_LETTER)
 
 # next to this file, so the app works no matter which folder it is started from
@@ -14,6 +14,10 @@ MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "persian_c
 
 STRICT_BELOW = 0.99  # below this confidence the stricter crop (drops far-away marks such as a chart caption
                      # under the letter) is also tried; 0.99 fixed the last hard_set error, 0.9 did not
+COLOUR_BELOW = 0.9   # below this confidence (or when refused), a photo with colour in it is also read with
+                     # the colour clean-up (common._colour_gray): pastel and cartoon letters, dots in another colour
+COLOUR_MIN = 0.5     # ... and that reading replaces the usual one only when it is at least this sure (and surer).
+                     # Measured: an app icon (no letter) was read as che at 0.25 by the colour clean-up
 
 # Refusing photos without a letter (measured on all test sets, see build_profile.py):
 MIN_CONTRAST = 12    # lightest minus darkest part of the (blurred) photo. Blank / dark / covered-camera
@@ -56,10 +60,10 @@ def load_model(path=MODEL_PATH):
         _model = m
     return _model
 
-def _probs(img, strict=False, captions=False):
+def _probs(img, strict=False, captions=False, colour=False):
     """-> (class probabilities, (cleaned SIZE x SIZE image the model looked at, letter box in img, features))"""
     info = {}
-    view = preprocess(img, strict, captions, info)
+    view = preprocess(img, strict, captions, info, colour)
     x = torch.tensor(view).unsqueeze(0).unsqueeze(0)
     m = load_model()
     with torch.no_grad():
@@ -168,6 +172,7 @@ def _read_several(img, topk):
     if not letters or max(rows.count(r) for r in set(rows)) < 2:   # letters are written side by side; a small
         return None                                                 # shape alone under a letter is its caption
     H, W = img.shape[:2]
+    lined = None                                       # the photo without ruled lines, made when first needed
     out = []
     for letter in letters:
         x, y, w, h = letter.box
@@ -175,14 +180,42 @@ def _read_several(img, topk):
         x0, y0 = max(0, x - p), max(0, y - p)          # he cut tightly was read as "not a letter"); a neighbour
                                                        # peeking in touches the crop edge and is dropped
         x1, y1 = min(W, x + w + p), min(H, y + h + p)
-        try:
-            res, (view, (bx, by, bw, bh)) = _read_one(img[y0:y1, x0:x1], topk, MULTI_MAX_DISTANCE)
-        except ValueError:
+        got = _read_letter(img[y0:y1, x0:x1], topk)
+        if got is None:                                # a ruled line through a small letter: in the small crop
+            if lined is None:                          # the line is too short to be recognised as one
+                lined = _without_ruled_lines(img)
+            got = _read_letter(lined[y0:y1, x0:x1], topk)
+        if got is None:
             continue
-        if res[0][1] < MULTI_MIN_CONF:
-            continue
+        res, (view, (bx, by, bw, bh)) = got
         out.append((res, (view, (bx + x0, by + y0, bw, bh))))
     return out if len(out) >= 2 else None
+
+
+def _read_letter(crop, topk):
+    """One letter of a photo of several letters, or None when it is not read surely enough."""
+    try:
+        res, view = _read_one(crop, topk, MULTI_MAX_DISTANCE)
+    except ValueError:
+        return None
+    return (res, view) if res[0][1] >= MULTI_MIN_CONF else None
+
+
+def _without_ruled_lines(img):
+    """The photo with its ruled lines painted over in the paper colour. On the whole photo a notebook
+    line clearly runs across the page; in the small crop around one letter it may not, and a short
+    line through a small letter (he on the line) made it 'not a letter'. Only used for a letter that
+    could not be read otherwise: painting can also cover pen ink lying along a line."""
+    lines = ruled_lines(img)
+    if not lines.any():
+        return img
+    out = img.copy()
+    paper = _binary(img) == 0
+    if paper.shape != lines.shape:
+        paper = cv2.resize(paper.astype(np.uint8), lines.shape[::-1], interpolation=cv2.INTER_NEAREST) > 0
+    lines = cv2.dilate(lines, np.ones((3, 3), np.uint8)) > 0
+    out[lines] = np.median(img[paper & ~lines], axis=0)
+    return out
 
 
 def _runs_off_edge(img, box):
@@ -229,9 +262,23 @@ def looks_persian(img, limit=25):
     return float((dist < PERSIAN_CLOSE).mean()) >= MIN_PERSIAN
 
 
+def _usable(p, view, max_distance):
+    """Would this reading be shown (not refused as 'not a letter' or as unlike every letter)?"""
+    return p[NOT_A_LETTER] < 0.5 and letter_distance(int(p[:NOT_A_LETTER].argmax()), view[2]) <= max_distance
+
+
+def _unsure(p, view, max_distance):
+    return not _usable(p, view, max_distance) or p[:NOT_A_LETTER].max() < COLOUR_BELOW
+
+
 def _read_one(img, topk, max_distance=MAX_DISTANCE):
     """The photo (or crop) holds one letter -> top-k, (cleaned image, letter box)."""
-    p, view = _probs(img)
+    try:
+        p, view = _probs(img)
+    except ValueError:                      # nothing darker than the paper: a light letter in colour?
+        if not colourful(img):
+            raise
+        p, view = _probs(img, colour=True)
     if caption_suspect(img):                # a caption (small Latin text) sits under the letter
         try:
             q, v = _probs(img, captions=True)  # same crop with the caption text removed
@@ -246,6 +293,16 @@ def _read_one(img, topk, max_distance=MAX_DISTANCE):
                 p, view = q, v
         except ValueError:
             pass
+    if _unsure(p, view, max_distance) and colourful(img):   # a letter in colour: let colour count as ink
+        for strict in (False, True):
+            try:
+                q, v = _probs(img, strict=strict, colour=True)
+            except ValueError:
+                continue
+            if not _unsure(q, v, max_distance) or (q[:NOT_A_LETTER].max() > max(COLOUR_MIN, p[:NOT_A_LETTER].max())
+                                                    and _usable(q, v, max_distance)):
+                p, view = q, v
+                break
     view, box, feats = view
     if p[NOT_A_LETTER] >= 0.5:                      # the model itself says: this is not a Persian letter
         raise ValueError(NO_LETTER)

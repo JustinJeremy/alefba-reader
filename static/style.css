@@ -1,4 +1,4 @@
-/* Persian letter reader - page style.
+/* Alefba Reader (Persian letter reader) - page style.
    "Soft green and white" palette: forest-green banner with a white title, near-white page, white cards
    with a leaf-green edge. To change the colours, edit only the variables in :root below.
    On phones everything sits in one column and reads from top to bottom. */
@@ -45,7 +45,7 @@ body {
 [hidden] { display: none !important; }
 
 
-/* ---------- banner ---------- */
+/* banner */
 
 .banner {
   padding: 28px 16px 26px;
@@ -84,7 +84,7 @@ body {
 
 
 
-/* ---------- page column ---------- */
+/* page column */
 
 main {
   width: min(680px, 100%);
@@ -114,7 +114,7 @@ main {
 }
 
 
-/* ---------- photo area ---------- */
+/* photo area */
 
 .lead {
   margin: -4px 0 0;
@@ -180,7 +180,7 @@ main {
 }
 
 
-/* ---------- buttons ---------- */
+/* buttons */
 
 .row {
   display: flex;
@@ -254,7 +254,7 @@ input[type=file] { display: none; }
 }
 
 
-/* ---------- messages ---------- */
+/* messages */
 
 #err {
   padding: 12px 16px;
@@ -268,7 +268,7 @@ input[type=file] { display: none; }
 #err:empty { display: none; }
 
 
-/* ---------- result: letter tile on the left, details on the right ---------- */
+/* result: letter tile on the left, details on the right */
 
 #result {
   grid-template-columns: auto 1fr;
@@ -394,7 +394,7 @@ input[type=file] { display: none; }
 }
 
 
-/* ---------- how the app read the photo: the two steps side by side ---------- */
+/* how the app read the photo: the two steps side by side */
 
 .steps {
   display: grid;
@@ -440,7 +440,7 @@ input[type=file] { display: none; }
 }
 
 
-/* ---------- save as test photo ---------- */
+/* save as test photo */
 
 #truthMulti {
   display: flex;
@@ -478,7 +478,7 @@ input[type=file] { display: none; }
 #saved:empty { display: none; }
 
 
-/* ---------- several letters in one photo ---------- */
+/* several letters in one photo */
 
 #wordLatin {
   font: 700 2rem/1.2 var(--heading);
@@ -534,7 +534,7 @@ input[type=file] { display: none; }
 }
 
 
-/* ---------- laptops and PCs: two columns ----------
+/* laptops and PCs: two columns
    [ Your photo        ] [ Answer      ]
    [ How it was read   ] [ Save photo  ]    (phones keep the single column:
                                              photo, answer, save, how it was read) */
@@ -564,7 +564,7 @@ input[type=file] { display: none; }
 }
 
 
-/* ---------- small screens ---------- */
+/* small screens */
 
 @media (max-width: 520px) {
   .banner h1 { font-size: 1.5rem; }

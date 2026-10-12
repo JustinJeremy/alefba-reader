@@ -1,4 +1,4 @@
-# Persian Letter Recognition (CNN)
+# Alefba Reader: Persian Letter Recognition (CNN)
 
 Full guide (commands, adding test photos, where to change what): info/guide.md
 
