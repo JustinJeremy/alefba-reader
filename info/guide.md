@@ -1,7 +1,53 @@
 # Alefba Reader (Persian OCR): guide
 
 Everything you need to run, test and change the project without help.
-Run every command in the VS Code terminal, inside the `persian_ocr` folder.
+Run every command in the VS Code terminal, inside the `alefba_reader` folder.
+Slides-ready summary for the presentation (technique, algorithm, software): `info/presentation.md`.
+
+---
+
+## 0. Getting the project from GitHub (step by step)
+
+The repository is private: ask JJ (JustinJeremy) to add you as a collaborator first.
+
+*Once per computer*
+
+1. Install *Python 3.14* (python.org; tick "Add python.exe to PATH"), *Git* (git-scm.com) and
+   *VS Code*.
+2. Open VS Code, then *Terminal → New Terminal*, and go to where the project should live:
+   `cd Downloads`
+3. Copy the project from GitHub (sign in when asked):
+   `git clone https://github.com/JustinJeremy/alefba-reader.git alefba_reader`
+4. Open the folder: *File → Open Folder… → Downloadslefba_reader*, then open a new terminal.
+5. Install the libraries (a few minutes, torch is big): `pip install -r requirements.txt`
+6. Check it works: `python -m pytest` (about 4 min, all should pass; 1 "xfailed" is fine).
+7. Start the app: `python app.py`, open `http://127.0.0.1:5000`, upload a photo, press *Read letter*.
+
+The trained model (`persian_cnn.pt`) comes with the download, so nothing has to be trained.
+Only the training images (`data/`, 1.4 GB) are not on GitHub; they are needed only to retrain
+(section 2, "Rebuild the training data and retrain").
+
+*Every time you start working*
+
+1. `git checkout main` then `git pull` (gets everything merged since last time)
+2. `pip install -r requirements.txt` only if `requirements.txt` changed
+3. `python app.py`
+
+## How do I...?
+
+| To do this | Do these steps |
+|---|---|
+| Show the demo | `python app.py` → open `http://127.0.0.1:5000` → *Choose file* or *Take photo* → *Read letter* |
+| Use a phone as the camera | Same Wi-Fi (or the phone's hotspot) → `python app.py --host 0.0.0.0` → open the second address it prints on the phone |
+| Read a whole alphabet sheet | Circle, highlight or draw an arrow at one letter (any colour), or drag a box around it on the photo |
+| Read a picture card / busy photo | Upload it; if the answer is wrong, drag a box around the letter and read again |
+| Keep a photo for testing | After reading: pick the right letter under *Save as test photo* → choose the folder → *Save photo* |
+| Check the app still works | `python -m pytest`, then the `python score_testset.py ...` commands (section 2) |
+| Add test photos by hand | Name them `NN_name_anything.jpg` and copy them into a test folder (section 3) |
+| Change a setting | Find it in section 4, edit, restart the app, *Ctrl+F5* in the browser |
+| Make a change for the team | `git checkout -b my-change` → edit → test → `git add -A` → `git commit -m "..."` → `git push -u origin my-change` → open a pull request on GitHub → merge → `git checkout main` → `git pull` |
+| Retrain the model | Only after changing training data or `common.py`'s clean-up: section 2, ~2–3 h; compare old and new scores before keeping it |
+| Undo a bad model | `git checkout persian_cnn.pt letter_profile.npz` |
 
 ---
 
