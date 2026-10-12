@@ -100,6 +100,7 @@ MANY_LETTERS = ("This photo shows many letters. Mark the one to read (circle it,
 MAX_LETTERS = 20     # a photo with 2..MAX_LETTERS separate letters is read letter by letter
 MULTI_MIN_CONF = 0.85  # and each such letter must be at least this sure. Measured: multi_set letters 0.95+,
                        # letter-like pieces of screenshots and English text up to 0.81 (when not refused anyway)
+SEVERAL_TRIES = 3    # how often a photo of several letters is looked at (again without the refused shapes)
 CAPTION_ROW = 0.65  # a row whose biggest shape is smaller than this (x the biggest letter) is caption text.
                     # Measured: caption letters 0.44-0.55; every row of real letters has one of 0.7 or more
 MULTI_MAX_DISTANCE = 0.42  # stricter "unlike every letter" limit for each letter of a photo with several letters
@@ -160,8 +161,33 @@ def read_photo(img, topk=3, select=None):
 def _read_several(img, topk):
     """A photo of a few separate letters -> each letter read on its own, in reading order; None when
     fewer than two real letters are found (shapes the model refuses, like a caption, do not count),
-    so a photo of one letter is always read exactly as before."""
-    letters = find_letters(img)
+    so a photo of one letter is always read exactly as before.
+    When shapes are refused (a shadow, a printed form box), the letters are looked for again without
+    them: small letters were measured against them and dropped as dots, and a dot was not joined to its
+    letter (notepad photo 30-18-10-21). Photos where every shape is a letter are read in one go."""
+    refused, read = set(), {}                      # boxes the model refused / read before (box -> result)
+    lined = [None]                                 # the photo without ruled lines, made when first needed
+    for _ in range(SEVERAL_TRIES):
+        letters = _several_candidates(img, refused)
+        if letters is None:
+            return None
+        out, before = [], len(refused)
+        for letter in letters:
+            if letter.box not in read:
+                read[letter.box] = _read_candidate(img, letter.box, topk, lined)
+            if read[letter.box] is None:
+                refused.add(letter.box)
+            else:
+                out.append(read[letter.box])
+        if len(refused) == before:                 # nothing new refused: the letters are final
+            break
+    return out if len(out) >= 2 else None
+
+
+def _several_candidates(img, skip):
+    """The shapes of a photo of several letters that may be letters (caption rows dropped), or None
+    when the photo does not look like letters written side by side."""
+    letters = find_letters(img, skip=skip)
     if not 2 <= len(letters) <= MAX_LETTERS:
         return None
     size = lambda l: max(l.box[2], l.box[3])
@@ -171,25 +197,26 @@ def _read_several(img, topk):
     rows = [l.row for l in letters]                 # (a row of only small shapes is caption text: dropped)
     if not letters or max(rows.count(r) for r in set(rows)) < 2:   # letters are written side by side; a small
         return None                                                 # shape alone under a letter is its caption
+    return letters
+
+
+def _read_candidate(img, box, topk, lined):
+    """One shape of a photo of several letters -> (top-k, (view, box in img)), or None when refused."""
     H, W = img.shape[:2]
-    lined = None                                       # the photo without ruled lines, made when first needed
-    out = []
-    for letter in letters:
-        x, y, w, h = letter.box
-        p = int(0.3 * max(w, h)) + 4                   # paper around it, as in a photo of one letter (a small
-        x0, y0 = max(0, x - p), max(0, y - p)          # he cut tightly was read as "not a letter"); a neighbour
-                                                       # peeking in touches the crop edge and is dropped
-        x1, y1 = min(W, x + w + p), min(H, y + h + p)
-        got = _read_letter(img[y0:y1, x0:x1], topk)
-        if got is None:                                # a ruled line through a small letter: in the small crop
-            if lined is None:                          # the line is too short to be recognised as one
-                lined = _without_ruled_lines(img)
-            got = _read_letter(lined[y0:y1, x0:x1], topk)
-        if got is None:
-            continue
-        res, (view, (bx, by, bw, bh)) = got
-        out.append((res, (view, (bx + x0, by + y0, bw, bh))))
-    return out if len(out) >= 2 else None
+    x, y, w, h = box
+    p = int(0.3 * max(w, h)) + 4                   # paper around it, as in a photo of one letter (a small
+    x0, y0 = max(0, x - p), max(0, y - p)          # he cut tightly was read as "not a letter"); a neighbour
+                                                   # peeking in touches the crop edge and is dropped
+    x1, y1 = min(W, x + w + p), min(H, y + h + p)
+    got = _read_letter(img[y0:y1, x0:x1], topk)
+    if got is None:                                # a ruled line through a small letter: in the small crop
+        if lined[0] is None:                       # the line is too short to be recognised as one
+            lined[0] = _without_ruled_lines(img)
+        got = _read_letter(lined[0][y0:y1, x0:x1], topk)
+    if got is None:
+        return None
+    res, (view, (bx, by, bw, bh)) = got
+    return res, (view, (bx + x0, by + y0, bw, bh))
 
 
 def _read_letter(crop, topk):
