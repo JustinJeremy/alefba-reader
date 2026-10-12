@@ -122,7 +122,7 @@ def render(font_path, ch, rng):
     return photo_like(text_ink(font_path, ch, rng), rng)
 
 
-# ---------- things that are not a Persian letter ----------
+# things that are not a Persian letter
 
 def shape_ink(rng, W=300, combo=True):
     """A random non-letter shape as an ink mask: tiles, boxes, blobs (object / face silhouettes),

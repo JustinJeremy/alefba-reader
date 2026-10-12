@@ -18,6 +18,11 @@ MIN_MARK = 0.0005           # smallest mark, as a fraction of the photo area
 SOLID = 0.13                # stroke thickness / mark size above which a mark is a highlighter
 STANDOUT = 50               # a mark must be this much more saturated than the paper. Measured: real
                             # marks +101 (highlighter) and +238 (marker); greenish webcam paper +14, +41
+HIGHLIGHT_MAX = 0.1         # a highlighter marks ONE letter of a sheet: its box covers a small part of the photo.
+                            # Measured: real highlights 0.006 of the photo; a whole coloured letter 0.24-0.38
+HIGHLIGHT_INK = 0.08        # and there is writing under it: the biggest darker shape inside spans at least
+                            # this share of the mark. Measured: real highlights 0.12-0.22; coloured letters
+                            # (pastel, cartoon) 0.00-0.05 when they are small enough to pass HIGHLIGHT_MAX
 
 
 @dataclass
@@ -93,6 +98,21 @@ def _find_mark(small, ink_hue, paper_s=0):
     mask = (lab == best).astype(np.uint8) * 255
     _, S, _ = _hsv(small)
     return mask if np.median(S[mask > 0]) >= paper_s + STANDOUT else None
+
+
+def _writing_under(small, mark, region):
+    """Is there writing under a highlighter-like mark? A highlighter is see-through, so the pen
+    writing under it stays darker than the highlighter. A letter printed or drawn in colour (a
+    pastel or cartoon letter) is itself the 'mark': nothing darker and letter-sized lies under it,
+    or it fills a large part of the photo, which a highlight on a sheet of letters never does."""
+    hx, hy, hw, hh = cv2.boundingRect(region)
+    if hw * hh > HIGHLIGHT_MAX * mark.size:
+        return False
+    _, _, V = _hsv(small)
+    dark = ((V < np.median(V[mark > 0]) - 80) & (region > 0)).astype(np.uint8)
+    n, _, st, _ = cv2.connectedComponentsWithStats(dark, connectivity=8)
+    biggest = max([max(st[i][2], st[i][3]) for i in range(1, n)] + [0])
+    return biggest >= HIGHLIGHT_INK * max(hw, hh)
 
 
 def _stroke_width(mask):
@@ -212,9 +232,11 @@ def find_marked_letter(img):
     hull = cv2.convexHull(cv2.findNonZero(mark))
     hx, hy, hw, hh = cv2.boundingRect(hull)
     solid = _thickness(mark) >= SOLID
-    lab, st = _letters(small, mark, solid)
-    region = np.zeros(lab.shape, np.uint8)
+    region = np.zeros(mark.shape, np.uint8)
     cv2.fillConvexPoly(region, hull, 1)
+    if solid and not _writing_under(small, mark, region):
+        return None                  # a letter in colour, not a highlighter over a letter: read it as is
+    lab, st = _letters(small, mark, solid)
     inside = _inside(lab, len(st), region)
     enclosed = [i for i in range(1, len(st)) if inside[i] >= 0.7 * st[i][4] and st[i][4] >= 0.02 * hw * hh]
 

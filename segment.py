@@ -13,8 +13,9 @@ from common import _prepare_bw
 
 DOT_REACH = 0.7     # a dot may sit this far (x letter height) above / below its letter
 PIECE_GAP = 0.15    # two big pieces closer than this (x letter height) are one letter (e.g. gaf's top bar)
-MIN_SIZE = 0.4      # a letter is at least this big compared with the biggest letter in the photo.
-                    # Measured on multi_set: real letters 0.45+ (he, dal); stray pieces / caption text 0.33 or less
+MIN_SIZE = 0.35     # a letter is at least this big compared with the biggest letter in the photo.
+                    # Measured on multi_set: real letters 0.45+ (he, dal); stray pieces / caption text 0.33 or less.
+                    # A small handwritten he next to a tall gheyn measured 0.38 (real_photos/multi_letter_photos)
 
 
 @dataclass

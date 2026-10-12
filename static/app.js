@@ -1,4 +1,4 @@
-// Persian letter reader - page behaviour.
+// Alefba Reader (Persian letter reader) - page behaviour.
 // Photo in (file, drop or camera) -> optional drag-selection -> POST /predict -> show the answer.
 
 const $ = id => document.getElementById(id);
@@ -12,7 +12,7 @@ let several = false;           // the last answer held several letters (saved wi
 const SINGLE_FOLDER = "random_test_photos", MULTI_FOLDER = "multi_letter_photos";
 
 
-// ---------- showing and hiding parts of the page ----------
+// showing and hiding parts of the page
 
 function hideResults() {
   $("placeholder").hidden = false;
@@ -32,7 +32,7 @@ function showEmpty() {
 }
 
 
-// ---------- choosing a photo ----------
+// choosing a photo
 
 function setFile(f) {
   if (!f) return;
@@ -76,7 +76,7 @@ $("drop").ondrop = e => {
 };
 
 
-// ---------- drag a box on the photo to choose one letter ----------
+// drag a box on the photo to choose one letter
 
 function clearSel() {
   sel = null;
@@ -132,7 +132,7 @@ document.addEventListener("keydown", e => {
 });
 
 
-// ---------- camera ----------
+// camera
 
 function showCamControls(on) {
   $("camBtn").classList.toggle("live", on);
@@ -242,7 +242,7 @@ $("flipBtn").onclick = async () => {
 };
 
 
-// ---------- talking to the app (python app.py) ----------
+// talking to the app (python app.py)
 
 // POST a form and return the JSON answer. Turns the browser's bare "Failed to fetch" (the app is not
 // running, the laptop slept, the Wi-Fi dropped) and non-JSON error pages into messages a person can act on.
@@ -265,7 +265,7 @@ async function send(url, fd) {
 }
 
 
-// ---------- reading the letter ----------
+// reading the letter
 
 function showAnswer(d) {
   if (d.letters && d.letters.length > 1) { showWord(d); return; }
@@ -398,7 +398,7 @@ $("go").onclick = async () => {
 };
 
 
-// ---------- save as test photo ----------
+// save as test photo
 
 $("saveBtn").onclick = async () => {
   $("saveBtn").disabled = true;

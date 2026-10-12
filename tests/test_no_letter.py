@@ -90,13 +90,9 @@ def test_same_photo_can_be_saved_twice_in_different_folders(tmp_path, monkeypatc
     assert os.listdir(tmp_path / "Ethan") == ["15_shin_1.jpg"]
 
 
-KNOWN_MISS = pytest.mark.xfail(strict=True, reason="known miss: still read as a letter (gheyn, 90%); needs more "
-                               "varied 'not a letter' training images. strict: this test fails once it is fixed")
-
-
 @pytest.mark.parametrize("name", ["screenshot_game_tiles.jpg", "screenshot_profile_page.jpg",
                                   "screenshot_app_icon.jpg",          # (a known miss until batch 10)
-                                  pytest.param("screenshot_number_77776.jpg", marks=KNOWN_MISS)])
+                                  "screenshot_number_77776.jpg"])     # (a known miss until batch 11)
 def test_screenshots_of_objects_are_refused(name):
     # these used to be read as che / gaf with 85-98% confidence
     with pytest.raises(ValueError, match="No (complete )?Persian letter found"):

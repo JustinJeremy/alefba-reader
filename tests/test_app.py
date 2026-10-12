@@ -19,7 +19,7 @@ def post(client, data, name="x.jpg"):
 
 def test_home_page_loads(client):
     r = client.get("/")
-    assert r.status_code == 200 and b"Persian letter reader" in r.data
+    assert r.status_code == 200 and b"Alefba Reader" in r.data
 
 
 def test_predict_returns_letter_name_and_spellings(client):
