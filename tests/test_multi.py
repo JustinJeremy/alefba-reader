@@ -74,3 +74,10 @@ def test_small_letters_next_to_a_shadow_and_form_box(name):
     path = os.path.join(ROOT, "real_photos", "multi_letter_photos", name)
     letters, how = read_photo(load_image(path))
     assert [res[0][0] for res, _ in letters] == truth(path)
+
+
+def test_dal_on_ticked_notebook_paper():
+    # Kaye's dal: phone sharpening left a bright rim (grey halo -> striped blob) and the notebook's printed
+    # ticks along the top line looked like zal's dot
+    letters, _ = read_photo(load_image(os.path.join(ROOT, "real_photos", "Kaye", "09_dal_sheet.jpg")))
+    assert letters[0][0][0][0] == 9
