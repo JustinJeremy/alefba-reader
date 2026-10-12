@@ -248,7 +248,7 @@ After any change: *restart the app*, press *Ctrl+F5*, and run *`python -m pytest
 | Noise / grain refusal | `predict.py` | `MAX_INK = 0.32` (higher = refuses less), `MAX_GRAIN = 25` |
 | When grainy photos get smoothed | `common.py` | `GRAIN = 2.5` (lower = smooths more photos) |
 | Photos enlarged before clean-up (under 256 px) | `common.py` | `SMALL = 256` |
-| "Unlike every letter" refusal | `predict.py` | `MAX_DISTANCE = 0.65` (higher = refuses less); `MULTI_MAX_DISTANCE = 0.85` for photos of several letters |
+| "Unlike every letter" refusal | `predict.py` | `MAX_DISTANCE = 0.65` (higher = refuses less); `MULTI_MAX_DISTANCE = 0.42` for photos of several letters |
 | Most letters read from one photo (20) | `predict.py` | `MAX_LETTERS` |
 | Splitting a photo into letters | `segment.py` | `DOT_REACH` (how far a dot may be), `PIECE_GAP` (pieces of one letter), `MIN_SIZE` (smallest letter vs. the biggest) |
 | English-text refusal on busy photos | `predict.py` | `MIN_PERSIAN = 0.22` (lower = refuses less) |

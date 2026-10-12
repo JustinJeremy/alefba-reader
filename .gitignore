@@ -1,4 +1,4 @@
-# training images: 163 MB, rebuilt with convert_dataset.py + prepare_data.py
+# training images: about 1.4 GB, rebuilt with convert_dataset.py + prepare_data.py
 data/
 
 # Python cache
