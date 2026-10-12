@@ -104,7 +104,7 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 383/384 |
 | BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 273/296 (92.2%); whole picture cards 17/28 (was 4/28) |
-| Automated tests | 349 (+1 known miss) |
+| Automated tests | 351 (+1 known miss) |
 
 The letters must be upright: upside-down, sideways (90°) or mirrored letters are not read
 (small tilts up to about 10° are fine). Turned around, many letters become other letters
@@ -158,7 +158,7 @@ reading order.
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `347 passed, 1 xfailed`. The "xfailed" is a known miss (Mark's ق is read as ض
+Expected result: `351 passed, 1 xfailed`. The "xfailed" is a known miss (Mark's ق is read as ض
 in a row of two letters), which is fine.
 
 ### Score the test sets
@@ -187,6 +187,8 @@ Only needed if you change the model or the data.
 | Only rebuild the letter profile | `python build_profile.py` | ~3 min |
 
 After retraining, run `python -m pytest` and all five score commands before using the new model.
+During training `persian_cnn.pt` is overwritten after every better round: do not use the app,
+run tests or commit until it has finished (copy the old model somewhere first to compare).
 If the results get worse, git still has the old model (`git checkout persian_cnn.pt letter_profile.npz`).
 
 ### Git (when working without help)
