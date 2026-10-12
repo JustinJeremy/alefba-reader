@@ -190,14 +190,33 @@ def _grain(gray):
     return float(np.mean(d[calm] if calm.mean() > 0.2 else d))   # (pure noise is "edges" everywhere)
 
 
+BG_SHRINK = 4      # the paper brightness is a smooth gradient: on big photos (BG_SHRINK_FROM px or more on the
+BG_SHRINK_FROM = 400   # short side) it is measured on a 4x smaller copy, ~16x less work (marked sheets)
+
+
+def _paper_brightness(g, k):
+    """Brightness of the paper around each pixel (ink ignored): the brightest pixel in a k-wide circle,
+    smoothed. On big photos measured on a smaller copy (taking the brightest pixel of each 4x4 block,
+    so thin ink still disappears) and scaled back up."""
+    h, w = g.shape
+    if min(h, w) < BG_SHRINK_FROM:
+        bg = cv2.dilate(g, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
+        return cv2.GaussianBlur(bg, (0, 0), k / 3)
+    f = BG_SHRINK
+    small = cv2.dilate(g, np.ones((f, f), np.uint8))[f // 2::f, f // 2::f]
+    ks = max(3, k // f) | 1
+    bg = cv2.dilate(small, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ks, ks)))
+    bg = cv2.GaussianBlur(bg, (0, 0), ks / 3)
+    return cv2.resize(bg, (w, h), interpolation=cv2.INTER_LINEAR)
+
+
 def _flatten_lighting(gray):
     """Even out shadows / gradients so one global threshold works. Does nothing on evenly lit images."""
     inv = np.median(gray) < 110                    # light letter on dark paper -> work on the inverse
     g = 255 - gray if inv else gray
     h, w = g.shape
     k = max(15, int(max(h, w) * 0.12)) | 1         # window must be wider than the strokes
-    bg = cv2.dilate(g, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
-    bg = cv2.GaussianBlur(bg, (0, 0), k / 3)       # brightness of the paper around each pixel (ink ignored)
+    bg = _paper_brightness(g, k)                   # brightness of the paper around each pixel (ink ignored)
     # Judge the lighting from this paper estimate, not from an Otsu split: with a shadow, Otsu
     # separates lit paper from shaded paper and the lit half alone looks evenly lit.
     if np.subtract(*np.percentile(bg, [95, 5])) < 25:
@@ -214,8 +233,7 @@ def _binarize(gray):
     h, w = gray.shape                              # >30% "ink": thin ink on uneven / low-contrast paper
     k = max(15, int(max(h, w) * 0.12)) | 1
     cap = np.uint8(min(255, int(np.median(gray)) + 35))             # ignore white margins / glare when judging the paper
-    bg = cv2.dilate(np.minimum(gray, cap), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
-    bg = cv2.GaussianBlur(bg, (0, 0), k / 3)
+    bg = _paper_brightness(np.minimum(gray, cap), k)
     diff = np.clip(bg.astype(np.int16) - gray, 0, 255).astype(np.uint8)   # how much darker than nearby paper
     strong = diff > max(40, 0.6 * np.percentile(diff, 99.9))        # dark pen ink: always kept
     weak = (diff > 25).astype(np.uint8)                             # faint pixels: dots, thin ends... and ruled lines

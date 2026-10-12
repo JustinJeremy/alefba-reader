@@ -51,7 +51,7 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Unseen font | 96.9% |
 | Letters with lines / grain / blackout | 99.0% |
 | Real letters wrongly refused | 0.11% |
-| Speed | ~3 ms per image (model only) |
+| Speed | ~3 ms per image (model only); whole app: one letter ~0.1-0.3 s, marked sheet ~1 s (was ~2 s) |
 | Team handwriting (members' earlier sheets, never trained on) | 104/107 (97.2%) |
 | Photos of several letters (`multi_set`) | 24/25 |
 | All team photos (`real_photos`, incl. notepad photos of several letters) | 107/110 (97.3%) |
@@ -252,6 +252,7 @@ After any change: *restart the app*, press *Ctrl+F5*, and run *`python -m pytest
 | Noise / grain refusal | `predict.py` | `MAX_INK = 0.32` (higher = refuses less), `MAX_GRAIN = 25` |
 | When grainy photos get smoothed | `common.py` | `GRAIN = 2.5` (lower = smooths more photos) |
 | Photos enlarged before clean-up (under 256 px) | `common.py` | `SMALL = 256` |
+| Speed of the lighting clean-up on big photos | `common.py` | `BG_SHRINK = 4` (paper brightness measured on a 4x smaller copy; 1 = old, slower way) |
 | "Unlike every letter" refusal | `predict.py` | `MAX_DISTANCE = 0.65` (higher = refuses less); `MULTI_MAX_DISTANCE = 0.42` for photos of several letters |
 | Most letters read from one photo (20) | `predict.py` | `MAX_LETTERS` |
 | Splitting a photo into letters | `segment.py` | `DOT_REACH` (how far a dot may be), `PIECE_GAP` (pieces of one letter), `MIN_SIZE` (smallest letter vs. the biggest) |
