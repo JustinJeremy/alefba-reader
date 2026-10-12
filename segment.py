@@ -33,14 +33,23 @@ def _join(a, b):
     a[:] = [min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])]
 
 
-def _groups(bw):
-    """Connected shapes -> letters (list of boxes x0, y0, x1, y1), dots and pieces joined to their letter."""
+def _inside(s, box, m=2):
+    """Is component s (x, y, w, h, area) inside box (x0, y0, x1, y1), give or take m pixels?"""
+    return s[0] >= box[0] - m and s[1] >= box[1] - m and s[0] + s[2] <= box[2] + m and s[1] + s[3] <= box[3] + m
+
+
+def _groups(bw, skip=()):
+    """Connected shapes -> letters (list of boxes x0, y0, x1, y1), dots and pieces joined to their letter.
+    skip: boxes (x0, y0, x1, y1) of shapes known not to be letters; everything inside them is ignored,
+    also when measuring the pen (a thick shadow made the pen look 3x too thick, so small letters
+    looked like dots)."""
     n, lab, st, _ = cv2.connectedComponentsWithStats(bw, connectivity=8)
     if n <= 1:
         return []
     H, W = bw.shape
     edge = {i for i in range(1, n) if st[i][0] == 0 or st[i][1] == 0
-            or st[i][0] + st[i][2] >= W or st[i][1] + st[i][3] >= H}  # desk, paper edge, half a neighbour
+            or st[i][0] + st[i][2] >= W or st[i][1] + st[i][3] >= H  # desk, paper edge, half a neighbour
+            or any(_inside(st[i], b) for b in skip)}
     pen = max(1.0, _stroke_width(np.isin(lab, [i for i in range(1, n) if i not in edge])))
     boxes = [[st[i][0], st[i][1], st[i][0] + st[i][2], st[i][1] + st[i][3]] for i in range(1, n)
              if i not in edge and st[i][4] >= max(4, 0.5 * pen * pen)  # not specks
@@ -97,20 +106,24 @@ def _rows(groups):
     return [sorted(r, key=lambda g: -(g[0] + g[2])) for r in rows]
 
 
-def find_letters(img, min_size=MIN_SIZE):
+def find_letters(img, min_size=MIN_SIZE, skip=()):
     """-> letters in reading order. Shapes much smaller than the biggest letter in the photo (specks,
-    caption text) and shapes cut off by the photo edge (a neighbour half in the photo) are left out."""
+    caption text) and shapes cut off by the photo edge (a neighbour half in the photo) are left out.
+    skip: boxes (as returned before) known not to be letters, e.g. a shadow or a printed form box the
+    model refused. They are left out before the size comparison, so they do not make real letters
+    look too small."""
     try:
         bw = _prepare_bw(img)
     except ValueError:
         return []
-    return letters_in_mask(bw, max(img.shape[:2]) / max(bw.shape), min_size)
+    return letters_in_mask(bw, max(img.shape[:2]) / max(bw.shape), min_size, skip)
 
 
-def letters_in_mask(bw, k=1.0, min_size=MIN_SIZE):
+def letters_in_mask(bw, k=1.0, min_size=MIN_SIZE, skip=()):
     """Same as find_letters, on a ready-made ink mask (ink = 255); boxes are scaled by k."""
     H, W = bw.shape
-    groups = _groups(bw)
+    scaled = lambda g: tuple(int(round(v * k)) for v in (g[0], g[1], g[2] - g[0], g[3] - g[1]))
+    groups = _groups(bw, [(x / k, y / k, (x + w) / k, (y + h) / k) for x, y, w, h in skip])
     if not groups:
         return []
     biggest = max(max(g[2] - g[0], g[3] - g[1]) for g in groups)
@@ -120,5 +133,5 @@ def letters_in_mask(bw, k=1.0, min_size=MIN_SIZE):
     out = []
     for r, row in enumerate(_rows(groups)):
         for g in row:
-            out.append(Letter(tuple(int(round(v * k)) for v in (g[0], g[1], g[2] - g[0], g[3] - g[1])), r))
+            out.append(Letter(scaled(g), r))
     return out

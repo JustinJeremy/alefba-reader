@@ -54,10 +54,11 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Speed | ~3 ms per image (model only) |
 | Team handwriting (members' earlier sheets, never trained on) | 104/107 (97.2%) |
 | Photos of several letters (`multi_set`) | 24/25 |
+| All team photos (`real_photos`, incl. notepad photos of several letters) | 107/110 (97.3%) |
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 383/384 |
 | BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 259/296 (87.5%); without the whole picture cards 255/268 (95.1%) |
-| Automated tests | 347 (+1 known miss) |
+| Automated tests | 349 (+1 known miss) |
 
 The letters must be upright: upside-down, sideways (90°) or mirrored letters are not read
 (small tilts up to about 10° are fine). Turned around, many letters become other letters
@@ -184,6 +185,9 @@ was trained on no longer tells you anything as a test.
 - *Check:* `python score_testset.py multi_set`.
 - Automatic: every photo here is also an automated test (`tests/test_multi.py`).
 - Keep the letters well apart and fully inside the photo (a letter cut off by the photo edge is skipped).
+- At most 20 letters per photo (`MAX_LETTERS`); a whole sheet asks you to mark one letter instead.
+- Shadows, printed form boxes ("NO./DATE") and other shapes the model refuses are left out and the
+  photo is looked at again (up to `SEVERAL_TRIES = 3` times), so they no longer hide small letters.
 
 ### `member_handwriting/`: a member's letters for *training*
 

@@ -64,3 +64,13 @@ def test_member_letters_are_training_only():
     tr, va, te, held = train.split(y, src, font)
     assert set(np.where(src == "members")[0]) <= set(tr)
     assert not set(np.where(src == "members")[0]) & (set(va) | set(te))
+
+
+@pytest.mark.parametrize("name", ["30-18-10-21_1.jpg", "30-18-10-21_2.jpg"])
+def test_small_letters_next_to_a_shadow_and_form_box(name):
+    # notepad photo: four small letters, a ceiling shadow and the printed "NO./DATE" box. The shadow and
+    # box made he and zal look like dots (too small, pen too thick) and gheyn's dot too far away;
+    # the refused shapes are now left out and the letters looked for again
+    path = os.path.join(ROOT, "real_photos", "multi_letter_photos", name)
+    letters, how = read_photo(load_image(path))
+    assert [res[0][0] for res, _ in letters] == truth(path)
