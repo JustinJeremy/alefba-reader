@@ -1,27 +1,141 @@
 # Alefba Reader: Persian Letter Recognition (CNN)
 
-Full guide (commands, adding test photos, where to change what): info/guide.md
+A web app and command-line tool that reads **Persian letters from a photo** and gives their
+**English spelling** (e.g. غ → `gh`, ق → `q`), using the romanisation from the instructor's
+alphabet chart (slide 3).
 
-Setup:        pip install -r requirements.txt
-Data:         1) python convert_dataset.py <folder with Random1..Random10>   (see below), or Convert IFHCDB letter images to PNGs in data/handwritten/<0..31>/ (class order = LETTERS in common.py; skip digits)
-              2) python prepare_data.py   renders the letters (and 'not a letter' examples: Latin letters, digits,
-                 shapes -> data/negative/32/) in the fonts in fonts/ plus the Arabic-script
-                 fonts that come with Windows (read in place, not copied), as photo-like printed samples
-Train:        python train.py            (creates persian_cnn.pt, letter_profile.npz, results/metrics.txt, results/confusion_matrix.csv)
-                 The Calibri font family is held out of training to measure accuracy on an unseen font.
-CLI:          python predict.py img1.jpg img2.jpg img3.jpg   [--ascii = no diacritics]
-Frontend:     python app.py   then open http://127.0.0.1:5000   (page: templates/index.html, static/style.css, static/app.js)
-              python app.py --host 0.0.0.0   to open it from a phone on the same Wi-Fi (it prints the address);
-              'Save photo' on the phone saves into the chosen real_photos/ folder on the laptop
-Output:       romanisation follows the instructor alphabet chart (slide 3), e.g. q for qaf, w for vav
-Tests:        python -m pytest              (unit + app + CLI tests, about 30 s)
-Score a set:  python score_testset.py rehearsal_set     (or hard_set; test-only images, never train on them)
-Real photos:  real_photos/ (TEST ONLY): random_test_photos/ from the app's "Save as test photo", plus JJ/ Ethan/ Mark/ Kaye/
-              name files 01_be_anything.jpg (see real_photos/README.txt), then: python score_testset.py real_photos
-Marked sheets: a photo of a whole alphabet sheet works if one letter is circled / boxed, highlighted, or
-              pointed at with an arrow, in any marker colour (marks.py). Without a mark the app asks for one,
-              or you drag a box around the letter on the photo in the web app.
-              Test set: python score_testset.py marked_set
-No letter:    blank / dark photos, noise and photos far from every letter are refused with "No Persian letter
-              found" (predict.py; letter_profile.npz holds each letter's average look: python build_profile.py)
-              Test photos that must be refused: no_letter_set/ (checked by tests/test_no_letter.py)
+It can read:
+
+- **one letter**: handwritten or printed, on plain, ruled or coloured paper
+- **a marked letter on a whole alphabet sheet**: circled, boxed, highlighted or pointed at with an arrow, in any marker colour
+- **several separate letters** in one photo (2–20), read right to left
+- and it **refuses** blank photos, noise, objects and non-Persian writing with *"No Persian letter found"*
+
+📖 **Full guide** (step-by-step setup, every command, adding test photos, where to change what):
+[`info/guide.md`](info/guide.md)
+🎤 **Presentation summary**: [`info/presentation.md`](info/presentation.md)
+
+---
+
+## Quick start
+
+```
+pip install -r requirements.txt
+python app.py
+```
+
+Then open <http://127.0.0.1:5000>, upload or take a photo, and press **Read letter**.
+
+The trained model (`persian_cnn.pt`) is included, so nothing has to be trained first.
+
+## Usage
+
+### Web app
+
+| What | Command |
+|---|---|
+| Laptop only | `python app.py`, then open `http://127.0.0.1:5000` |
+| Laptop and phone (same Wi-Fi) | `python app.py --host 0.0.0.0` (it prints the phone address) |
+| Different port | `python app.py --port 5001` |
+
+- On a phone, **Save photo** saves into the chosen `real_photos/` folder on the laptop.
+- On a whole alphabet sheet with no mark, the app asks for one, or you can drag a box around the letter.
+
+### Command line
+
+```
+python predict.py img1.jpg img2.jpg img3.jpg
+python predict.py photo.jpg --ascii          (sh instead of š)
+python predict.py photo.jpg --min-conf 0.8   (warn below 80% instead of 60%)
+```
+
+## How it works
+
+1. **Clean-up** (`common.py`, OpenCV): fixes shadows and lighting, removes ruled lines, frames
+   and grain, finds the letter and its dots, and turns it into a black-and-white 64×64 image.
+2. **Marks** (`marks.py`): finds the circled / highlighted / arrowed letter on a whole sheet.
+3. **Several letters** (`segment.py`): splits a photo into separate letters (body + dots).
+4. **Model** (`common.py`, PyTorch CNN, ~774k parameters): 33 answers, the 32 letters plus *"not a letter"*.
+5. **Refusals** (`predict.py`): photos that are not a Persian letter get *"No Persian letter found"*.
+6. **Lookup**: the letter is turned into its spelling, following the instructor's chart.
+
+## Results
+
+Full numbers in [`results/metrics.txt`](results/metrics.txt).
+
+| Measure | Result |
+|---|---|
+| Handwritten | 98.8% |
+| Printed | 97.8% |
+| Unseen font (Calibri, never trained on) | 97.4% |
+| Letters with ruled lines / grain / blackout | 98.7% |
+| Real letters wrongly refused | 0.13% |
+| Team photos (`real_photos`) | 109/110 |
+| Photos of several letters (`multi_set`) | 25/25 |
+| Hard set (`hard_set`) | 384/384 |
+| Rehearsal and marked sheets | 100% |
+| BUS testing dataset (`bus_test_set`) | 277/296 (93.6%) |
+| Speed | ~3 ms per image (model only); ~0.1–0.3 s per photo in the app |
+
+Letters must be upright (small tilts up to about 10° are fine). Turned around, many letters
+become other letters (پ and ث, ب and ن), so the app can't tell which way is up.
+
+## Testing
+
+```
+python -m pytest                        (all automated tests, ~4 min, expect 352 passed)
+python score_testset.py rehearsal_set
+python score_testset.py hard_set
+python score_testset.py real_photos
+python score_testset.py marked_set
+python score_testset.py multi_set
+python score_testset.py bus_test_set
+```
+
+Test sets are **test only**: never train on them.
+
+| Folder | What it holds |
+|---|---|
+| `real_photos/` | Team photos of one letter, named like `01_be_anything.jpg` (see `real_photos/README.txt`) |
+| `multi_set/` | Photos of several letters |
+| `marked_set/` | Whole alphabet sheets with one letter marked |
+| `hard_set/`, `rehearsal_set/` | Harder and demo-style photos |
+| `bus_test_set/` | Arabic, pastel, coloured and cartoon letters |
+| `no_letter_set/` | Photos that must be refused (checked by `tests/test_no_letter.py`) |
+
+## Retraining (optional)
+
+Only needed after changing the training data or the model. The training images (`data/`,
+1.4 GB) are not on GitHub.
+
+| Step | Command |
+|---|---|
+| 1. Handwriting data | `python convert_dataset.py <folder with Random1..Random10>` → `data/handwritten/<0..31>/` |
+| 2. Printed + "not a letter" data | `python prepare_data.py` (fonts in `fonts/` plus the Windows Arabic-script fonts) |
+| 3. Train (~2 h on CPU) | `python train.py` → `persian_cnn.pt`, `letter_profile.npz`, `results/` |
+| 4. Rebuild letter profile only | `python build_profile.py` |
+
+Compare the old and new scores before keeping a new model. To undo:
+`git checkout persian_cnn.pt letter_profile.npz`.
+
+## Project layout
+
+| Path | Purpose |
+|---|---|
+| `app.py` | Flask web app |
+| `templates/index.html`, `static/` | Web page, styles and script |
+| `predict.py` | Command-line reader and refusal rules |
+| `common.py` | Image clean-up, model, letter list (`LETTERS`) and romanisation |
+| `marks.py` | Finding the marked letter on a whole sheet |
+| `segment.py` | Splitting a photo into several letters |
+| `effects.py` | Ruled lines, film grain and blackout effects for training |
+| `train.py`, `prepare_data.py`, `convert_dataset.py`, `build_profile.py` | Training pipeline |
+| `score_testset.py` | Scoring a test-set folder |
+| `member_handwriting/` | Team handwriting used for training |
+| `tests/` | Automated tests (`pytest`) |
+| `results/` | Metrics and confusion matrix from the last training |
+| `info/` | Guide and presentation notes |
+
+## Team
+
+TIP Manila, CIT 401A: Asilo, Enriquez, Guinto, Tania.
