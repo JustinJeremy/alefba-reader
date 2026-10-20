@@ -51,6 +51,9 @@
   </svg>
 </template>
 
+<!-- all 32 letters for the alphabet chart (same table as the answers) -->
+<script id="letters-data" type="application/json">{{ letters|tojson }}</script>
+
 <div class="layout">
 
   <!-- left (on phones: top): everything you do -->
@@ -100,16 +103,28 @@
       </div>
 
       <button id="go" class="primary" type="button" disabled>Read letter</button>
+      <p class="keys"><kbd>Enter</kbd> reads the photo · <kbd>Ctrl + V</kbd> pastes one</p>
 
       <div id="err" role="alert"></div>
       <p class="note">Keep the letter upright: upside-down, sideways or mirrored letters are not read correctly.</p>
+
+      <button id="chartBtn" class="gold-outline" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Alphabet chart
+      </button>
     </section>
   </aside>
 
   <!-- right (on phones: middle): the answer -->
-  <main class="stage" aria-live="polite">
+  <main class="stage" id="answers" aria-live="polite">
 
-    <p class="eyebrow">Answer</p>
+    <!-- letters read since the page was opened; click one to see its answer again -->
+    <nav id="session" aria-label="This session" hidden>
+      <span class="eyebrow">This session</span>
+      <div id="sessionList"></div>
+    </nav>
+
+    <p class="eyebrow" id="answerLabel">Answer</p>
 
     <!-- shown until a letter is read -->
     <section id="placeholder">
@@ -127,6 +142,15 @@
       </div>
     </section>
 
+    <!-- while the app is reading the photo -->
+    <section id="reading" hidden>
+      <div class="talk big">
+        <span class="noghte" data-mood="thinking"></span>
+        <p class="bubble">Reading your photo…</p>
+      </div>
+      <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
+    </section>
+
     <!-- the photo was refused: no letter found, or a whole sheet with no mark -->
     <section id="refused" hidden>
       <span class="noghte" data-mood="puzzled"></span>
@@ -136,12 +160,19 @@
       </div>
     </section>
 
-    <!-- one letter -->
+    <!-- one letter (also used for a letter picked in the alphabet chart) -->
     <section id="result" hidden>
       <div class="answer">
         <div class="letter-tile" id="letter" lang="fa"></div>
         <div class="details">
-          <div id="latin"></div>
+          <div id="bestGuess">Best guess</div>
+          <div class="spelling">
+            <div id="latin"></div>
+            <button id="copyBtn" class="copy" type="button" aria-label="Copy the spelling">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/></svg>
+              <span>Copy</span>
+            </button>
+          </div>
           <div id="name"></div>
           <div id="plain"></div>
           <div class="conf">
@@ -150,13 +181,21 @@
           </div>
         </div>
       </div>
-      <div class="talk">
+      <div class="talk" id="talk">
         <span class="noghte" id="resultMascot" data-mood="happy"></span>
         <p class="bubble" id="bubble"></p>
       </div>
-      <div id="unsure" hidden>Not sure: this photo may not show a Persian letter.
-        Retake it closer, with one letter filling most of the photo.</div>
-      <div id="alts"></div>
+      <div id="unsure" hidden>
+        <span class="noghte" data-mood="thinking"></span>
+        <p><b>Not sure:</b> this photo may not show a Persian letter.
+          Retake it closer, with one letter filling most of the photo.</p>
+      </div>
+      <p id="alts"></p>
+      <section id="forms" aria-labelledby="formsTitle">
+        <h2 id="formsTitle"></h2>
+        <div id="formsList" dir="rtl"></div>
+        <p id="formsNote"></p>
+      </section>
       <div id="how"></div>
     </section>
 
@@ -167,9 +206,9 @@
       <div id="wordHow"></div>
     </section>
 
-    <!-- how the photo was read -->
-    <section id="howread" hidden>
-      <h2>How the app read your photo</h2>
+    <!-- how the photo was read (folded until opened) -->
+    <details id="howread" hidden>
+      <summary><span>How the app reads your photo</span><span class="toggle"></span></summary>
       <div class="steps">
         <figure>
           <img id="found" alt="Your photo with a box around the letter that was read">
@@ -189,30 +228,61 @@
           </figcaption>
         </figure>
       </div>
-    </section>
+    </details>
   </main>
 
-  <!-- left, under the photo (on phones: last): keep the photo as a test image -->
-  <section id="savebox" hidden>
-    <h2>Save as test photo</h2>
-    <label for="truth" id="truthLabel">This letter really is:</label>
-    <div id="truthMulti" dir="rtl" hidden></div>
-    <select id="truth">
-      {% for l in letters %}
-      <option value="{{ l.id }}">{{ l.letter }}  {{ l.latin }}  ({{ l.name }})</option>
-      {% endfor %}
-    </select>
-    <label for="folder">Folder</label>
-    <select id="folder">
-      {% for f in folders %}
-      <option value="{{ f }}">real_photos/{{ f }}</option>
-      {% endfor %}
-    </select>
-    <button id="saveBtn" class="gold-outline" type="button">Save photo</button>
-    <div id="saved" role="status"></div>
-  </section>
+  <!-- left, under the photo (on phones: last): keep the photo as a test image (folded until opened) -->
+  <details id="savebox" hidden>
+    <summary><h2>Save as test photo</h2><span class="toggle"></span></summary>
+    <div class="save-fields">
+      <label for="truth" id="truthLabel">This letter really is:</label>
+      <div id="truthMulti" dir="rtl" hidden></div>
+      <select id="truth">
+        {% for l in letters %}
+        <option value="{{ l.id }}">{{ l.letter }}  {{ l.latin }}  ({{ l.name }})</option>
+        {% endfor %}
+      </select>
+      <label for="folder">Folder</label>
+      <select id="folder">
+        {% for f in folders %}
+        <option value="{{ f }}">real_photos/{{ f }}</option>
+        {% endfor %}
+      </select>
+      <button id="saveBtn" class="gold-outline" type="button">Save photo</button>
+      <div id="saved" role="status"></div>
+    </div>
+  </details>
 
 </div>
+
+<!-- phones: jump back up to the photo after the page scrolled down to the answer -->
+<button id="toPhoto" class="floating" type="button" hidden>
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+  New photo
+</button>
+
+<!-- dragging a photo over the page -->
+<div id="dropAll" hidden>
+  <div>
+    <span class="noghte" data-mood="happy"></span>
+    <b>Drop to read</b>
+    <small>Let go of the photo anywhere on the page</small>
+  </div>
+</div>
+
+<!-- the alphabet chart -->
+<dialog id="chart" aria-labelledby="chartTitle">
+  <div class="chart-head">
+    <div>
+      <h2 id="chartTitle">The Persian alphabet</h2>
+      <p>32 letters, with the spellings from the instructor's chart. Click one to see it large.</p>
+    </div>
+    <button id="chartClose" class="round" type="button" aria-label="Close the chart">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div id="chartGrid" dir="rtl"></div>
+</dialog>
 
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

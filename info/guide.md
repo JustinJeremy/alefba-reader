@@ -104,7 +104,7 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 384/384 |
 | BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 277/296 (93.6%); whole picture cards 17/28 (was 4/28) |
-| Automated tests | 354, no known misses |
+| Automated tests | 355, no known misses |
 
 The letters must be upright: upside-down, sideways (90°) or mirrored letters are not read
 (small tilts up to about 10° are fine). Turned around, many letters become other letters
@@ -132,8 +132,15 @@ pip install -r requirements.txt
 - The live camera works only at `127.0.0.1` on the laptop. On a phone, *Take photo* opens the
   phone's camera app instead.
 - After changing any file, restart the app and press *Ctrl+F5* in the browser.
-- *Ctrl + V* anywhere on the page pastes a copied image or a screenshot as the photo.
+- *Ctrl + V* anywhere on the page pastes a copied image or a screenshot as the photo; a photo can also
+  be dropped anywhere on the page. *Enter* reads it, and *✕ New photo* (on the photo) starts over.
 - The moon / sun button switches light and dark mode; the browser remembers the choice.
+- *This session* (top of the answer side) lists the letters read since the page was opened; click one
+  to show its photo and answer again. It empties when the page is reloaded.
+- *Alphabet chart* (under the buttons) shows all 32 letters; clicking one shows it like an answer,
+  without a photo. *Copy* next to the spelling copies it.
+- *How the app reads your photo* and *Save as test photo* start folded: click their titles to open them.
+- On a phone the page scrolls down to the answer by itself; the *New photo* button at the bottom goes back up.
 - "No Persian letter found" and "many letters" answers appear on the answer side with the mascot;
   problems with the camera, the file or the app appear in red under the buttons.
 - If the phone can't open the page: allow Python through the Windows Firewall (private networks),
@@ -162,7 +169,7 @@ reading order.
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `354 passed`.
+Expected result: `355 passed`.
 
 ### Score the test sets
 
@@ -297,6 +304,8 @@ After any change: *restart the app*, press *Ctrl+F5*, and run *`python -m pytest
 | "Not sure" note (50%) | `static/app.js` | `t.confidence < 0.5` |
 | Colours | `static/style.css` | the variables at the top of the file: `:root` for light mode (`--side` panel, `--page` answer stage, `--gold` buttons, `--saffron` bar and rings…), `:root[data-theme=dark]` for dark mode |
 | The mascot (Noghte) | `templates/index.html` | the `<template id="noghte-art">` drawing; its moods are picked in `static/app.js` (`mood(...)`) |
+| How many answers *This session* keeps (10) | `static/app.js` | `HISTORY_MAX` |
+| Letters with only 2 shapes inside a word | `static/app.js` | `NON_JOINING` (ا آ د ذ ر ز ژ و) |
 | When the side-panel layout starts (960 px) | `static/style.css` | `@media (min-width: 960px)` (narrower: one column) |
 | Page text (headings, tips) | `templates/index.html` | the text itself |
 | Error messages | `predict.py` | `NO_LETTER`, `NO_LETTER_BLANK`, `NO_LETTER_EDGE`, `NOT_PERSIAN`, `MANY_LETTERS` |

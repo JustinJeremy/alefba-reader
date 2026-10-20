@@ -41,10 +41,17 @@ Everything runs offline: the fonts are stored in `static/fonts/`.
 The page has a brown side panel with everything you do (photo, buttons, saving) and an answer
 stage where the letter is shown large, next to its spelling and how sure the app is.
 
-- Choose a photo with *Choose file*, *Take photo*, drag and drop, or *Ctrl + V* (paste a copied image or screenshot).
+- Choose a photo with *Choose file*, *Take photo*, *Ctrl + V* (paste a copied image or screenshot),
+  or drop it anywhere on the page. *Enter* reads it; *✕ New photo* on the photo starts over.
 - Drag a box on the photo to read only that part.
 - On a whole alphabet sheet with no mark, the app asks for one, or you can drag a box around the letter.
-- *Save as test photo* saves the photo into the chosen `real_photos/` folder on the laptop (also from a phone).
+- The answer shows the letter, its spelling (with a *Copy* button), how sure the app is, other possible
+  letters, and how the letter looks inside a word (at the start, in the middle, at the end).
+- *This session* lists every letter read since the page was opened; click one to see it again.
+- *Alphabet chart* shows all 32 letters with their spellings; click one to see it large.
+- *How the app reads your photo* and *Save as test photo* are folded; click to open them.
+  Saving puts the photo into the chosen `real_photos/` folder on the laptop (also from a phone).
+- On a phone the page scrolls to the answer by itself; *New photo* at the bottom goes back up.
 - The moon / sun button switches between light and dark mode; the browser remembers the choice.
 - Noghte (نقطه, "dot"), the ink-dot mascot, shows how the app feels about its answer: happy, thinking or puzzled.
 
@@ -90,7 +97,7 @@ become other letters (پ and ث, ب and ن), so the app can't tell which way is 
 ## Testing
 
 ```
-python -m pytest                        (all automated tests, ~4 min, expect 354 passed)
+python -m pytest                        (all automated tests, ~4 min, expect 355 passed)
 python score_testset.py rehearsal_set
 python score_testset.py hard_set
 python score_testset.py real_photos

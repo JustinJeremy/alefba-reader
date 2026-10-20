@@ -134,11 +134,19 @@ h1, h2 { font-family: var(--heading); margin: 0; }
 #photo { display: grid; gap: 12px; }
 
 .stage {
-  padding: 24px 16px;
+  padding: 24px 16px 88px;      /* room at the bottom for the phone's floating "New photo" button */
   display: grid;
   gap: 22px;
   align-content: start;
+  justify-items: center;
   min-width: 0;
+  scroll-margin-top: 8px;
+  min-height: 100vh;            /* phones: always tall enough to scroll the answer up to the top */
+}
+
+.stage > * {                    /* the answer stays together on wide screens */
+  width: 100%;
+  max-width: 900px;
 }
 
 @media (min-width: 960px) {
@@ -264,11 +272,20 @@ h1, h2 { font-family: var(--heading); margin: 0; }
   stroke-linejoin: round;
 }
 
+#drop.has-photo {              /* a photo (or the camera) fills the area: no dashed "empty" frame */
+  min-height: 0;
+  padding: 0;
+  border: none;
+  cursor: default;
+}
+
+#drop.has-photo:hover { background: none; }
+
 #drop img,
 #drop video {
   max-width: 100%;
   max-height: 420px;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 #drop img {
@@ -285,6 +302,22 @@ h1, h2 { font-family: var(--heading); margin: 0; }
   display: inline-block;
   line-height: 0;
 }
+
+.clear-photo {                  /* "x New photo" on the photo's corner */
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 99px;
+  background: rgba(42, 28, 19, .82);
+  color: #fff7ec;
+  font-size: .88rem;
+  line-height: 1;
+}
+
+.clear-photo svg { width: 14px; height: 14px; stroke-width: 2.6; }
+.clear-photo:hover { background: #2a1c13; }
 
 #selbox {
   position: absolute;
@@ -303,11 +336,24 @@ h1, h2 { font-family: var(--heading); margin: 0; }
   color: var(--side-soft);
 }
 
-.note {
+.note,
+.keys {
   margin: 0;
   font-size: .82rem;
   color: var(--side-soft);
 }
+
+.keys kbd {
+  font: 700 .78rem/1 var(--text);
+  padding: 2px 6px;
+  border: 1px solid var(--side-soft);
+  border-radius: 6px;
+  color: var(--side-ink);
+}
+
+@media (pointer: coarse) { .keys { display: none; } }    /* no keyboard on phones */
+
+#chartBtn { width: 100%; }
 
 
 /* buttons */
@@ -487,6 +533,64 @@ input[type=file] { display: none; }
 
 .tips ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 
+#reading {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  padding: 48px 0;
+}
+
+#reading .noghte { width: 130px; height: 130px; }
+#reading .bubble { margin-bottom: 70px; font-size: 1.05rem; }
+
+#reading .dots { display: flex; gap: 10px; }
+
+#reading .dots span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--saffron);
+  animation: blink 1.2s infinite both;
+}
+
+#reading .dots span:nth-child(2) { animation-delay: .2s; }
+#reading .dots span:nth-child(3) { animation-delay: .4s; }
+
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) { #reading .dots span { animation: none; } }
+
+
+/* this session: the answers read since the page was opened */
+
+#session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+#sessionList { display: flex; flex-wrap: wrap; gap: 8px; }
+
+#sessionList .chip {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+#sessionList .chip small { font-size: .75rem; color: var(--muted); }
+#sessionList .chip span { font-weight: 700; font-size: 1.1rem; color: var(--brown); }
+
+#sessionList .chip[aria-current=true] {
+  border: 2px solid var(--saffron);
+  background: var(--warn-bg);
+  font-weight: 700;
+}
+
 #refused {
   display: flex;
   align-items: center;
@@ -538,11 +642,39 @@ input[type=file] { display: none; }
   min-width: 0;
 }
 
+#bestGuess {                    /* "Not sure": the spelling is only a best guess */
+  font-size: .85rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--low);
+}
+
+.spelling {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
 #latin {                        /* line-height 1.2 leaves room for tails and dots below (g, q, ḥ, ṭ...) */
   font: 700 72px/1.2 var(--heading);
   white-space: nowrap;
   margin-bottom: 2px;
 }
+
+button.copy {
+  margin-top: 14px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border-color: var(--line);
+  background: var(--card);
+  color: var(--brown);
+  font-size: .85rem;
+}
+
+button.copy svg { width: 15px; height: 15px; }
+button.copy:hover { border-color: var(--saffron); }
 
 #latin.high span {              /* eyn (ʿ) is a small raised mark: draw it bigger, at apostrophe height */
   display: inline-block;
@@ -588,33 +720,71 @@ input[type=file] { display: none; }
 #result .talk .noghte { width: 60px; height: 60px; }
 
 #unsure {                       /* confidence under 50%: a best guess, not an answer */
-  padding: 12px 14px;
-  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 16px;
   background: var(--warn-bg);
   border: 1.5px solid var(--saffron);
   color: var(--warn-ink);
   font-weight: 500;
 }
 
-#result.unsure .letter-tile { border-style: dashed; opacity: .7; }
+#unsure p { margin: 0; }
+#unsure .noghte { width: 56px; height: 56px; }
+
+#result.unsure .letter-tile { border-style: dashed; opacity: .75; }
 #result.unsure #latin { color: var(--muted); }
 
-#alts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  font-size: .9rem;
+#alts {                         /* "Also possible: ف fe · 2%" */
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
 }
 
 #alts:empty { display: none; }
+#alts b { color: var(--ink); font-size: 1.15rem; }
 
-#alts .chip {
-  padding: 4px 12px;
-  border-radius: 99px;
+/* a letter picked in the alphabet chart: no photo, so nothing about confidence or how it was read */
+#result.chart .conf { display: none; }
+
+#how:empty { display: none; }
+
+
+/* the letter inside a word */
+
+#forms {
+  padding: 16px 20px;
   background: var(--card);
   border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
+
+#forms h2 {
+  font-family: var(--text);
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+#formsList {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  text-align: center;
+}
+
+#formsList.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#formsList div { display: grid; }
+#formsList span { font: 700 48px/1.4 var(--text); color: var(--brown); }
+#formsList small { font-size: .8rem; color: var(--muted); direction: ltr; }
+
+#formsNote { margin: 8px 0 0; font-size: .85rem; color: var(--muted); }
+#formsNote:empty { display: none; }
 
 #how {
   justify-self: center;
@@ -669,14 +839,30 @@ input[type=file] { display: none; }
 
 /* how the app read the photo: the two steps side by side */
 
+/* folding sections: "How the app reads your photo" and "Save as test photo" */
+
+details > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  cursor: pointer;
+}
+
+details > summary::-webkit-details-marker { display: none; }
+details > summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
+
 #howread {
-  display: grid;
-  gap: 14px;
-  padding-top: 22px;
+  padding-top: 6px;
   border-top: 1px solid var(--line);
 }
 
-#howread h2 { font-size: 1.25rem; }
+#howread summary { font: 700 1.25rem/1.3 var(--heading); }
+#howread .toggle::after { content: "Show ▾"; font: 600 .95rem var(--text); color: var(--brown); }
+#howread[open] .toggle::after { content: "Hide ▴"; }
+#howread .steps { margin-top: 10px; }
 
 .steps {
   display: grid;
@@ -734,15 +920,16 @@ input[type=file] { display: none; }
 /* save as test photo */
 
 #savebox {
-  display: grid;
-  gap: 10px;
-  align-content: start;
+  align-self: start;
   margin: 0 16px 24px;
-  padding: 16px;
+  padding: 4px 16px;
   border-radius: 18px;
 }
 
 #savebox h2 { color: var(--side-ink); font-family: var(--heading); font-size: 1.1rem; letter-spacing: 0; text-transform: none; margin: 0; }
+#savebox .toggle::after { content: "▸"; font: 700 1.1rem var(--text); color: var(--gold-text); }
+#savebox[open] .toggle::after { content: "▾"; }
+.save-fields { display: grid; gap: 10px; padding-bottom: 14px; }
 #savebox label { font-size: .85rem; color: var(--side-soft); }
 
 #savebox select {
@@ -774,11 +961,10 @@ input[type=file] { display: none; }
 
 @media (min-width: 960px) {
   #savebox {
-    margin: 0;
-    padding: 0 28px 28px;
+    margin: 0 28px 28px;
+    padding: 8px 0 0;
     border-radius: 0;
     border-top: 1px solid var(--side-line);
-    padding-top: 18px;
   }
 
   .letter-tile {
@@ -795,6 +981,107 @@ input[type=file] { display: none; }
   #latin { font-size: 120px; margin-bottom: 4px; }
   #result .talk .noghte { width: 64px; height: 64px; }
 }
+
+
+/* phones: "New photo" floats at the bottom once the photo panel has scrolled away */
+
+button.floating {
+  position: fixed;
+  right: 16px;
+  bottom: 18px;
+  z-index: 5;
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 99px;
+  background: var(--side);
+  color: var(--side-ink);
+  border-color: var(--side-line);
+  box-shadow: 0 4px 14px rgba(42, 28, 19, .3);
+}
+
+@media (min-width: 960px) { button.floating { display: none; } }
+
+
+/* dragging a photo over the page */
+
+#dropAll {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  padding: 24px;
+  background: rgba(42, 28, 19, .72);
+  pointer-events: none;           /* the drop lands on the page underneath, which handles it */
+}
+
+#dropAll > div {
+  height: 100%;
+  border: 4px dashed var(--gold);
+  border-radius: 24px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  color: #fff7ec;
+  text-align: center;
+}
+
+#dropAll .noghte { width: 130px; height: 130px; }
+#dropAll .noghte .ink { fill: #e2b65a; }
+#dropAll .noghte .eye { fill: #2a1c13; }
+#dropAll .noghte .line { stroke: #2a1c13; }
+#dropAll b { font: 700 2.2rem/1.2 var(--heading); }
+#dropAll small { font-size: 1rem; color: #ead9c2; }
+
+
+/* the alphabet chart */
+
+dialog#chart {
+  width: min(1120px, calc(100% - 24px));
+  max-height: calc(100vh - 32px);
+  padding: 22px 24px;
+  border: none;
+  border-radius: 22px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 20px 60px rgba(42, 28, 19, .35);
+}
+
+dialog#chart::backdrop { background: rgba(42, 28, 19, .55); }
+
+.chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.chart-head h2 { font-size: 1.6rem; }
+.chart-head p { margin: 2px 0 0; font-size: .9rem; color: var(--muted); }
+.chart-head button.round { border-color: var(--line); color: var(--brown); }
+
+#chartGrid {                    /* 4 rows of 8, read right to left like the instructor's chart */
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 860px) { #chartGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; } }
+
+#chartGrid button {
+  min-height: 132px;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 14px;
+  border-color: var(--line);
+  background: var(--page);
+  color: var(--ink);
+}
+
+#chartGrid button:hover { border-color: var(--saffron); }
+#chartGrid span { font: 700 42px/1.3 var(--text); color: var(--brown); }
+#chartGrid b { font: 700 1.2rem/1.3 var(--heading); direction: ltr; }
+#chartGrid small { font-size: .75rem; font-weight: 400; color: var(--muted); direction: ltr; }
 
 
 /* small laptop windows (960-1199 px): a smaller medallion, so the spelling still fits beside it */
@@ -816,5 +1103,8 @@ input[type=file] { display: none; }
   .bar { width: 100px; }
   #latin { font-size: 60px; }
   #name { font-size: 1.05rem; }
+  .spelling { gap: 6px; }
+  button.copy { margin-top: 8px; padding: 0 8px; }
+  button.copy span { display: none; }               /* icon only; the button keeps its aria-label */
   #refused { flex-direction: column; text-align: center; }
 }

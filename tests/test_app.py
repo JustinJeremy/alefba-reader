@@ -72,8 +72,18 @@ def test_home_page_lists_all_32_letters_for_saving(client):
 
 def test_home_page_has_paste_dark_mode_mascot_and_refusal_card(client):
     html = client.get("/").data.decode("utf-8")
-    for part in ("Ctrl + V", 'id="themeBtn"', 'id="noghte-art"', 'id="refused"', 'id="plain"'):
+    for part in ("Ctrl + V", 'id="themeBtn"', 'id="noghte-art"', 'id="refused"', 'id="plain"',
+                 'id="reading"', 'id="session"', 'id="chart"', 'id="copyBtn"', 'id="forms"', 'id="dropAll"'):
         assert part in html, part
+
+
+def test_alphabet_chart_data_matches_the_answers(client):
+    import json, re
+    from common import LETTERS, LOOKUP, LOOKUP_ASCII, NAMES
+    html = client.get("/").data.decode("utf-8")
+    data = json.loads(re.search(r'<script id="letters-data" type="application/json">(.*?)</script>', html, re.S)[1])
+    assert [(d["letter"], d["latin"], d["ascii"], d["name"]) for d in data] == \
+           list(zip(LETTERS, LOOKUP, LOOKUP_ASCII, NAMES))
 
 
 def test_page_works_offline_fonts_and_icon_come_from_the_app(client):

@@ -93,7 +93,8 @@ def crashed(e):
 
 @app.get("/")
 def home():
-    letters = [{"id": i, "letter": LETTERS[i], "latin": LOOKUP[i], "name": NAMES[i]} for i in range(32)]
+    letters = [{"id": i, "letter": LETTERS[i], "latin": LOOKUP[i], "ascii": LOOKUP_ASCII[i], "name": NAMES[i]}
+               for i in range(32)]
     return render_template("index.html", letters=letters, folders=save_folders())
 
 
