@@ -25,6 +25,10 @@ function showTheme(t) {
 showTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
 $("themeBtn").onclick = () => {
   const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  // colours fade over to the new theme (only during the switch, so nothing else is slowed down)
+  document.documentElement.classList.add("theming");
+  clearTimeout(window.themingDone);
+  window.themingDone = setTimeout(() => document.documentElement.classList.remove("theming"), 600);
   showTheme(t);
   try { localStorage.setItem("theme", t); } catch (e) { /* private window: the choice just isn't kept */ }
 };
@@ -41,6 +45,8 @@ const history = [];            // this session's answers: { file, answer }, newe
 let shown = -1;                // which of them is on screen (-1: none, e.g. a letter from the chart)
 const SINGLE_FOLDER = "random_test_photos", MULTI_FOLDER = "multi_letter_photos";
 const HISTORY_MAX = 10;
+const READING_MIN_MS = 900;    // "Reading your photo..." stays at least this long
+const PHOTO_MAX_H = 420;       // tallest the chosen photo is drawn (px); small photos are enlarged to fit
 
 
 // showing and hiding parts of the page
@@ -51,7 +57,22 @@ function showOnly(id) {                    // one of ANSWER_PARTS; "How it reads
   ANSWER_PARTS.forEach(p => { $(p).hidden = p !== id; });
   $("howread").hidden = true;
   $("savebox").hidden = true;
+  $("clearAnswer").hidden = !["result", "word", "refused"].includes(id);
+  $("clearAnswer").querySelector("span").textContent = "Clear";
 }
+
+// "x Clear" beside the answer: closes a letter opened from the chart (back to what was there before),
+// otherwise clears the photo and its answer, like "x New photo"
+let beforeChart = -1;
+$("clearAnswer").onclick = () => {
+  if ($("result").classList.contains("chart") && !$("result").hidden) {
+    const h = history[beforeChart];
+    if (h && current === h.file) { showAnswer(h.answer); shown = beforeChart; drawSession(); }
+    else hideResults();
+  } else {
+    newPhoto();
+  }
+};
 
 function hideResults() {
   showOnly("placeholder");
@@ -103,11 +124,24 @@ function setFile(f) {
 
   $("drop").replaceChildren(stage);
   $("drop").classList.add("has-photo");
+  img.onload = () => fitPhoto(img);
   setupSelect(img, box);
   clearSel();
   $("selrow").hidden = false;
   $("go").disabled = false;
 }
+
+// Draw the photo as big as the panel allows (small photos and screenshots are enlarged), keeping its
+// shape, so there is room to drag a box on it. The box maths uses the drawn size, so it stays exact.
+function fitPhoto(img) {
+  if (!img || !img.naturalWidth) return;
+  const avail = $("drop").clientWidth;
+  const s = Math.min(avail / img.naturalWidth, PHOTO_MAX_H / img.naturalHeight);
+  img.style.width = Math.round(img.naturalWidth * s) + "px";
+  img.style.height = Math.round(img.naturalHeight * s) + "px";
+}
+
+window.addEventListener("resize", () => fitPhoto($("drop").querySelector("img")));
 
 function newPhoto() {
   stopCam();
@@ -542,6 +576,9 @@ $("go").onclick = async () => {
   showOnly("reading");
   revealAnswer();
   const file = current;
+  const started = performance.now();
+  // most photos are read in a fraction of a second: keep "Reading your photo..." up long enough to be seen
+  const atLeast = () => new Promise(r => setTimeout(r, Math.max(0, READING_MIN_MS - (performance.now() - started))));
   try {
     const fd = new FormData();
     fd.append("image", file);
@@ -549,7 +586,8 @@ $("go").onclick = async () => {
       fd.append("sel_x", sel.x); fd.append("sel_y", sel.y);
       fd.append("sel_w", sel.w); fd.append("sel_h", sel.h);
     }
-    const d = await send("/predict", fd);
+    let d;
+    try { d = await send("/predict", fd); } finally { await atLeast(); }
     showAnswer(d);
     remember(file, d);
     revealAnswer();                                  // again: the answer is taller than "Reading..."
@@ -625,6 +663,9 @@ $("copyBtn").onclick = async () => {
     ta.remove();
   }
   $("copyBtn").querySelector("span").textContent = ok ? "Copied" : "Copy failed";
+  $("copyBtn").classList.remove("done");
+  void $("copyBtn").offsetWidth;                  // restart the flash on every click
+  $("copyBtn").classList.toggle("done", ok);
 };
 
 
@@ -647,6 +688,7 @@ $("chartGrid").replaceChildren(...LETTERS.map(l => {
 }));
 
 function showChartLetter(l) {
+  if (!$("result").classList.contains("chart") || $("result").hidden) beforeChart = shown;
   setLetter(l);
   $("result").classList.add("chart");
   $("result").classList.remove("unsure", "low");
@@ -659,6 +701,7 @@ function showChartLetter(l) {
   $("how").replaceChildren();
   showOnly("result");
   $("answerLabel").textContent = "From the alphabet chart";
+  $("clearAnswer").querySelector("span").textContent = "Close";
   shown = -1;
   drawSession();
   revealAnswer();

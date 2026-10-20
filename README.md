@@ -42,7 +42,8 @@ The page has a brown side panel with everything you do (photo, buttons, saving) 
 stage where the letter is shown large, next to its spelling and how sure the app is.
 
 - Choose a photo with *Choose file*, *Take photo*, *Ctrl + V* (paste a copied image or screenshot),
-  or drop it anywhere on the page. *Enter* reads it; *✕ New photo* on the photo starts over.
+  or drop it anywhere on the page. *Enter* reads it; *✕ New photo* on the photo, or *✕ Clear* beside
+  the answer, starts over. Small photos are drawn large so a box can be dragged on them.
 - Drag a box on the photo to read only that part.
 - On a whole alphabet sheet with no mark, the app asks for one, or you can drag a box around the letter.
 - The answer shows the letter, its spelling (with a *Copy* button), how sure the app is, other possible

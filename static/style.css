@@ -131,7 +131,11 @@ h1, h2 { font-family: var(--heading); margin: 0; }
   border-radius: 0 0 22px 22px;
 }
 
-#photo { display: grid; gap: 12px; }
+#photo { display: grid; gap: 14px; }
+
+#photo .keys { margin-top: -2px; }
+#photo .note { line-height: 1.55; }
+#chartBtn { margin-top: 6px; }
 
 .stage {
   padding: 24px 16px 88px;      /* room at the bottom for the phone's floating "New photo" button */
@@ -284,9 +288,11 @@ h1, h2 { font-family: var(--heading); margin: 0; }
 #drop img,
 #drop video {
   max-width: 100%;
-  max-height: 420px;
   border-radius: 10px;
 }
+
+#drop video { max-height: 420px; }
+#drop img { image-rendering: auto; }      /* its size is set by fitPhoto() in app.js */
 
 #drop img {
   display: block;
@@ -343,9 +349,12 @@ h1, h2 { font-family: var(--heading); margin: 0; }
   color: var(--side-soft);
 }
 
+.keys { line-height: 2; }
+
 .keys kbd {
   font: 700 .78rem/1 var(--text);
-  padding: 2px 6px;
+  padding: 3px 7px;
+  margin: 0 2px;
   border: 1px solid var(--side-soft);
   border-radius: 6px;
   color: var(--side-ink);
@@ -492,6 +501,27 @@ input[type=file] { display: none; }
 
 
 /* the answer stage */
+
+.stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+}
+
+button.clear-answer {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 99px;
+  border-color: var(--line);
+  background: var(--card);
+  color: var(--brown);
+  font-size: .9rem;
+}
+
+button.clear-answer svg { width: 14px; height: 14px; stroke-width: 2.6; }
+button.clear-answer:hover { border-color: var(--saffron); }
 
 .eyebrow {
   margin: 0;
@@ -1107,4 +1137,85 @@ dialog#chart::backdrop { background: rgba(42, 28, 19, .55); }
   button.copy { margin-top: 8px; padding: 0 8px; }
   button.copy span { display: none; }               /* icon only; the button keeps its aria-label */
   #refused { flex-direction: column; text-align: center; }
+}
+
+
+/* animations: short and calm. All of them are switched off when the device asks for less motion. */
+
+/* light <-> dark: colours fade over (the class is on <html> only during the switch) */
+.theming *,
+.theming *::before,
+.theming *::after,
+.theming body {
+  transition: background-color .45s ease, color .45s ease, border-color .45s ease,
+              fill .45s ease, stroke .45s ease, box-shadow .45s ease !important;
+}
+
+#themeBtn svg { transition: transform .45s ease; }
+.theming #themeBtn svg { transform: rotate(180deg); }
+
+/* answer parts appear with a short rise */
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }      /* ends at the element's own style */
+@keyframes pop { 0% { opacity: 0; transform: scale(.85); } 70% { transform: scale(1.03); } }   /* (so "Not sure" stays dimmed) */
+@keyframes fade { from { opacity: 0; } }
+
+#placeholder, #reading, #refused, #word, #howread, #session, #forms, #unsure, #alts { animation: rise .35s ease both; }
+#result .letter-tile { animation: pop .45s ease both; }
+#result .details { animation: rise .4s .08s ease both; }
+#result .talk { animation: rise .4s .16s ease both; }
+#forms { animation-delay: .22s; }
+#tiles .mini { animation: pop .4s ease both; }
+#tiles .mini:nth-child(2) { animation-delay: .06s; }
+#tiles .mini:nth-child(3) { animation-delay: .12s; }
+#tiles .mini:nth-child(n+4) { animation-delay: .18s; }
+#err:not(:empty) { animation: rise .3s ease both; }
+#drop img { animation: fade .3s ease both; }
+
+/* Noghte floats gently while waiting, hops when it is sure, tilts when puzzled */
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes hop { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } 55% { transform: translateY(0); } 75% { transform: translateY(-4px); } }
+@keyframes tilt { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(6deg); } }
+
+#placeholder .noghte svg, #reading .noghte svg { animation: float 2.4s ease-in-out infinite; }
+#result .noghte[data-mood=happy] svg { animation: hop .9s .3s ease both; }
+#refused .noghte[data-mood=puzzled] svg { animation: tilt .9s .2s ease both; }
+#dropAll .noghte svg { animation: float 1.6s ease-in-out infinite; }
+
+/* folding sections open softly */
+details[open] > :not(summary) { animation: rise .3s ease both; }
+.toggle::after { display: inline-block; transition: transform .2s ease; }
+
+/* buttons and tiles lift a little under the mouse */
+button, label.btn { transition: background .15s, border-color .15s, transform .12s, box-shadow .15s; }
+@media (hover: hover) {
+  button:not(:disabled):hover, label.btn:hover { transform: translateY(-1px); }
+  #chartGrid button:hover { box-shadow: 0 6px 16px rgba(42, 28, 19, .14); }
+}
+button:not(:disabled):active { transform: translateY(1px); }
+
+/* the alphabet chart opens with a pop, its tiles ripple in */
+dialog#chart[open] { animation: pop .3s ease both; }
+dialog#chart[open]::backdrop { animation: fade .3s ease both; }
+#chartGrid button { animation: rise .35s ease both; }
+#chartGrid button:nth-child(8n+2) { animation-delay: .02s; }
+#chartGrid button:nth-child(8n+3) { animation-delay: .04s; }
+#chartGrid button:nth-child(8n+4) { animation-delay: .06s; }
+#chartGrid button:nth-child(8n+5) { animation-delay: .08s; }
+#chartGrid button:nth-child(8n+6) { animation-delay: .1s; }
+#chartGrid button:nth-child(8n+7) { animation-delay: .12s; }
+#chartGrid button:nth-child(8n) { animation-delay: .14s; }
+
+/* dragging a photo over the page, and the phone's floating button */
+#dropAll:not([hidden]) { animation: fade .2s ease both; }
+#toPhoto:not([hidden]) { animation: rise .3s ease both; }
+
+/* "Copied": a quick flash of gold */
+@keyframes flash { 0% { background: var(--gold); } 100% { background: var(--card); } }
+button.copy.done { animation: flash .6s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

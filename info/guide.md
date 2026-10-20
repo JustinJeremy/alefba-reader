@@ -141,6 +141,11 @@ pip install -r requirements.txt
   without a photo. *Copy* next to the spelling copies it.
 - *How the app reads your photo* and *Save as test photo* start folded: click their titles to open them.
 - On a phone the page scrolls down to the answer by itself; the *New photo* button at the bottom goes back up.
+- *✕ Clear* (top right of the answer) clears the photo and its answer; for a letter opened from the chart
+  it says *✕ Close* and goes back to the answer that was there before.
+- Small photos and screenshots are drawn large, so a box can be dragged on them.
+- The page uses short animations (fades, Noghte hopping); they switch off when the computer or phone is
+  set to reduce motion.
 - "No Persian letter found" and "many letters" answers appear on the answer side with the mascot;
   problems with the camera, the file or the app appear in red under the buttons.
 - If the phone can't open the page: allow Python through the Windows Firewall (private networks),
@@ -306,6 +311,9 @@ After any change: *restart the app*, press *Ctrl+F5*, and run *`python -m pytest
 | The mascot (Noghte) | `templates/index.html` | the `<template id="noghte-art">` drawing; its moods are picked in `static/app.js` (`mood(...)`) |
 | How many answers *This session* keeps (10) | `static/app.js` | `HISTORY_MAX` |
 | Letters with only 2 shapes inside a word | `static/app.js` | `NON_JOINING` (ا آ د ذ ر ز ژ و) |
+| How long "Reading your photo…" stays at least (0.9 s) | `static/app.js` | `READING_MIN_MS = 900` |
+| Tallest the chosen photo is drawn (420 px) | `static/app.js` | `PHOTO_MAX_H = 420` |
+| Animations | `static/style.css` | the "animations" section at the end of the file |
 | When the side-panel layout starts (960 px) | `static/style.css` | `@media (min-width: 960px)` (narrower: one column) |
 | Page text (headings, tips) | `templates/index.html` | the text itself |
 | Error messages | `predict.py` | `NO_LETTER`, `NO_LETTER_BLANK`, `NO_LETTER_EDGE`, `NOT_PERSIAN`, `MANY_LETTERS` |
