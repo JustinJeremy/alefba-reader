@@ -70,6 +70,20 @@ def test_home_page_lists_all_32_letters_for_saving(client):
     assert len(re.findall(r'<option value="\d+"', html)) == 32 and "Save as test photo" in html
 
 
+def test_home_page_has_paste_dark_mode_mascot_and_refusal_card(client):
+    html = client.get("/").data.decode("utf-8")
+    for part in ("Ctrl + V", 'id="themeBtn"', 'id="noghte-art"', 'id="refused"', 'id="plain"'):
+        assert part in html, part
+
+
+def test_page_works_offline_fonts_and_icon_come_from_the_app(client):
+    css = client.get("/static/style.css").data.decode("utf-8")
+    assert "http" not in css                                    # no fonts or images from the internet
+    for f in ("Lora-Variable.ttf", "Vazirmatn-Regular.ttf", "Vazirmatn-Medium.ttf", "Vazirmatn-Bold.ttf"):
+        assert f in css and client.get("/static/fonts/" + f).status_code == 200, f
+    assert client.get("/static/icon.svg").status_code == 200
+
+
 def test_save_writes_labelled_photo(client, tmp_path, monkeypatch):
     import app as app_module
     monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))

@@ -1,7 +1,27 @@
 // Alefba Reader (Persian letter reader) - page behaviour.
-// Photo in (file, drop or camera) -> optional drag-selection -> POST /predict -> show the answer.
+// Photo in (file, drop, paste or camera) -> optional drag-selection -> POST /predict -> show the answer.
 
 const $ = id => document.getElementById(id);
+
+
+// Noghte, the mascot: one drawing (the <template> in index.html) copied into each place it appears
+
+const NOGHTE = $("noghte-art").content;
+document.querySelectorAll(".noghte").forEach(el => el.append(NOGHTE.cloneNode(true)));
+
+function mood(el, m) { el.dataset.mood = m; }
+
+
+// light / dark colours (the choice is remembered in this browser)
+
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $("themeBtn").setAttribute("aria-label", t === "dark" ? "Switch to light mode" : "Switch to dark mode");
+  try { localStorage.setItem("theme", t); } catch (e) { /* private window: the choice just isn't kept */ }
+}
+
+setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+$("themeBtn").onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
 
 let current = null;            // the photo (File) that will be read
 let stream = null;             // live camera stream, while the camera is on
@@ -16,17 +36,17 @@ const SINGLE_FOLDER = "random_test_photos", MULTI_FOLDER = "multi_letter_photos"
 
 function hideResults() {
   $("placeholder").hidden = false;
+  $("refused").hidden = true;
   $("result").hidden = true;
   $("word").hidden = true;
   $("howread").hidden = true;
   $("savebox").hidden = true;
 }
 
+const EMPTY_HINT = $("hint").cloneNode(true);   // the "Drop a photo" text, put back when the camera turns off
+
 function showEmpty() {
-  const hint = document.createElement("span");
-  hint.id = "hint";
-  hint.innerHTML = '<span class="big-hint" aria-hidden="true">&#8681;</span>Drop an image here, or click to choose one';
-  $("drop").replaceChildren(hint);
+  $("drop").replaceChildren(EMPTY_HINT.cloneNode(true));
   $("selrow").hidden = true;
   $("go").disabled = true;
 }
@@ -74,6 +94,19 @@ $("drop").ondrop = e => {
   $("drop").classList.remove("over");
   setFile(e.dataTransfer.files[0]);
 };
+
+// Ctrl+V anywhere on the page: a copied image or a screenshot becomes the photo
+// (text pasted into the page is ignored, and so is pasting while a list is being used)
+document.addEventListener("paste", e => {
+  if (e.target.closest && e.target.closest("select, input, textarea")) return;
+  const item = [...(e.clipboardData ? e.clipboardData.items : [])].find(i => i.type.startsWith("image/"));
+  if (!item) return;
+  const blob = item.getAsFile();
+  if (!blob) return;
+  e.preventDefault();
+  const ext = (blob.type.split("/")[1] || "png").replace("jpeg", "jpg");
+  setFile(new File([blob], "pasted." + ext, { type: blob.type }));
+});
 
 
 // drag a box on the photo to choose one letter
@@ -134,6 +167,8 @@ document.addEventListener("keydown", e => {
 
 // camera
 
+function camLabel(text) { $("camBtn").querySelector("span").textContent = text; }   // keeps the icon
+
 function showCamControls(on) {
   $("camBtn").classList.toggle("live", on);
   $("camOff").hidden = !on;
@@ -153,7 +188,7 @@ function stopCam() {
     stream.getTracks().forEach(t => t.stop());
     stream = null;
   }
-  $("camBtn").textContent = "Take photo";
+  camLabel("Take photo");
   showCamControls(false);
 }
 
@@ -216,7 +251,7 @@ $("camBtn").onclick = async () => {
   try {
     await openStream();
     current = null;
-    $("camBtn").textContent = "Capture";
+    camLabel("Capture");
     showCamControls(true);
     $("go").disabled = true;
     $("err").textContent = "";
@@ -278,19 +313,26 @@ function showAnswer(d) {
   const span = document.createElement("span");
   span.textContent = t.latin;
   $("latin").replaceChildren(span);
-  $("latin").classList.toggle("symbol", t.latin === "-" || t.latin === "ʿ");   // alef = -, eyn = ʿ
-  $("latin").classList.toggle("high", t.latin === "ʿ");
-  $("name").textContent = t.name + (t.ascii !== t.latin ? " · plain: " + t.ascii : "");
+  $("latin").classList.toggle("high", t.latin === "ʿ");      // eyn = ʿ, a small raised mark
+  $("name").textContent = t.name;
+  $("plain").textContent = t.ascii !== t.latin ? "plain keyboard: " + t.ascii : "";
 
   const pct = Math.round(t.confidence * 100);
+  const low = t.confidence < 0.6;
   const unsure = t.confidence < 0.5;               // shown as a best guess, never as a sure answer
-  $("conf").textContent = "Confidence " + pct + "%" + (t.confidence < 0.6 ? " (low: retake the photo)" : "");
+  $("conf").textContent = pct + "% sure" + (low ? " (low: retake the photo)" : "");
   $("unsure").hidden = !unsure;
   $("result").classList.toggle("unsure", unsure);
+  $("result").classList.toggle("low", low);
   $("confbar").firstElementChild.style.width = pct + "%";
-  $("confbar").classList.toggle("low", t.confidence < 0.6);
+  $("confbar").classList.toggle("low", low);
 
-  $("alts").replaceChildren(...rest.map(x => {
+  mood($("resultMascot"), unsure || low ? "thinking" : "happy");
+  $("bubble").textContent = unsure ? ""
+    : low ? "Probably " + t.name + ", but a clearer photo would help."
+    : "That's " + t.name + "! I'm " + pct + "% sure.";
+
+  $("alts").replaceChildren(...rest.filter(x => x.confidence >= 0.01).map(x => {   // 0% guesses are noise
     const chip = document.createElement("span");
     chip.className = "chip";
     chip.textContent = x.letter + " " + x.latin + " (" + x.name + ") " + Math.round(x.confidence * 100) + "%";
@@ -308,6 +350,7 @@ function showAnswer(d) {
   $("saveBtn").disabled = false;
 
   $("placeholder").hidden = true;
+  $("refused").hidden = true;
   $("result").hidden = false;
   $("howread").hidden = false;
   $("savebox").hidden = false;
@@ -351,6 +394,7 @@ function showWord(d) {
   $("saveBtn").disabled = false;
 
   $("placeholder").hidden = true;
+  $("refused").hidden = true;
   $("result").hidden = true;
   $("word").hidden = false;
   $("howread").hidden = false;
@@ -378,6 +422,22 @@ function setSaveMode(tops) {
   if (!several && f === MULTI_FOLDER) $("folder").value = SINGLE_FOLDER;
 }
 
+// The app refused the photo (messages from predict.py): show it on the answer stage with Noghte.
+// Returns false for other problems (camera, file, app not running), which stay under the buttons.
+function showRefused(msg) {
+  const nothing = msg.match(/^(No (?:complete )?Persian letter found)(?:: | in this photo\. )?(.*)$/);
+  const many = msg.startsWith("This photo shows many letters");
+  if (!nothing && !many) return false;
+  hideResults();
+  $("placeholder").hidden = true;
+  $("refusedTitle").textContent = many ? "Which letter should I read?" : nothing[1];
+  const text = many ? msg : nothing[2];
+  $("refusedText").textContent = text.charAt(0).toUpperCase() + text.slice(1);
+  mood($("refused").querySelector(".noghte"), many ? "thinking" : "puzzled");
+  $("refused").hidden = false;
+  return true;
+}
+
 $("go").onclick = async () => {
   $("go").disabled = true;
   $("go").textContent = "Reading...";
@@ -391,7 +451,7 @@ $("go").onclick = async () => {
     }
     showAnswer(await send("/predict", fd));
   } catch (e) {
-    $("err").textContent = e.message;
+    if (!showRefused(e.message)) $("err").textContent = e.message;
   }
   $("go").textContent = "Read letter";
   $("go").disabled = false;
