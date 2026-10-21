@@ -71,8 +71,11 @@ python predict.py photo.jpg --min-conf 0.8   (warn below 80% instead of 60%)
 2. *Marks* (`marks.py`): finds the circled / highlighted / arrowed letter on a whole sheet.
 3. *Several letters* (`segment.py`): splits a photo into separate letters (body + dots).
 4. *Model* (`common.py`, PyTorch CNN, ~774k parameters): 33 answers, the 32 letters plus "not a letter".
-5. *Refusals* (`predict.py`): photos that are not a Persian letter get "No Persian letter found".
-6. *Lookup*: the letter is turned into its spelling, following the instructor's chart.
+5. *Turned letters* (`predict.py`): ruled paper photographed at a tilt is straightened along its lines;
+   a second model trained on turned letters (`persian_cnn_tilt.pt`) also reads one-letter photos the
+   main model is unsure of, and the surer answer wins.
+6. *Refusals* (`predict.py`): photos that are not a Persian letter get "No Persian letter found".
+7. *Lookup*: the letter is turned into its spelling, following the instructor's chart.
 
 ## Results
 
@@ -90,6 +93,7 @@ Full numbers in [`results/metrics.txt`](results/metrics.txt).
 | Hard set (`hard_set`) | 384/384 |
 | Rehearsal and marked sheets | 100% |
 | BUS testing dataset (`bus_test_set`) | 277/296 (93.6%) |
+| Turned letters, 15–345° (`turned_set`) | 811/1390 (58%), was 440 before batch 16 |
 | Speed | ~3 ms per image (model only); ~0.1–0.3 s per photo in the app |
 
 Tilted and sideways letters are read too (batch 16): photos of turned letters (15–345°) went from
@@ -113,6 +117,7 @@ python score_testset.py real_photos
 python score_testset.py marked_set
 python score_testset.py multi_set
 python score_testset.py bus_test_set
+python make_turned_set.py               (then: python score_testset.py turned_set)
 ```
 
 Test sets are *test only*: never train on them.
@@ -125,6 +130,7 @@ Test sets are *test only*: never train on them.
 | `hard_set/`, `rehearsal_set/` | Harder and demo-style photos |
 | `bus_test_set/` | Arabic, pastel, coloured and cartoon letters |
 | `no_letter_set/` | Photos that must be refused (checked by `tests/test_no_letter.py`) |
+| `turned_set/` | The one-letter test photos turned to 10 angles (made by `make_turned_set.py`, not in git) |
 
 ## Retraining (optional)
 
@@ -136,6 +142,7 @@ Only needed after changing the training data or the model. The training images (
 | 1. Handwriting data | `python convert_dataset.py <folder with Random1..Random10>` → `data/handwritten/<0..31>/` |
 | 2. Printed + "not a letter" data | `python prepare_data.py` (fonts in `fonts/` plus the Windows Arabic-script fonts) |
 | 3. Train (~2 h on CPU) | `python train.py` → `persian_cnn.pt`, `letter_profile.npz`, `results/` |
+| 3b. Train the tilt model (~1 h on the GPU) | `python train.py --tilt` → `persian_cnn_tilt.pt`, `letter_profile_tilt.npz`, `results_tilt/` |
 | 4. Rebuild letter profile only | `python build_profile.py` |
 
 Compare the old and new scores before keeping a new model. To undo:
@@ -154,6 +161,8 @@ Compare the old and new scores before keeping a new model. To undo:
 | `effects.py` | Ruled lines, film grain and blackout effects for training |
 | `train.py`, `prepare_data.py`, `convert_dataset.py`, `build_profile.py` | Training pipeline |
 | `numpy_cnn.py`, `persian_cnn.npz` | The model run with NumPy only, for the online copy |
+| `persian_cnn_tilt.pt`, `letter_profile_tilt.npz`, `persian_cnn_tilt.npz`, `results_tilt/` | The tilt model (turned letters) |
+| `make_turned_set.py` | Makes `turned_set/`, the turned test photos |
 | `render.yaml`, `requirements-server.txt`, `.python-version` | Settings for putting it online on Render |
 | `score_testset.py` | Scoring a test-set folder |
 | `member_handwriting/` | Team handwriting used for training |
