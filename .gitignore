@@ -12,3 +12,5 @@ BackUp*/
 
 # test photos turned to other angles, made again with make_turned_set.py
 turned_set/
+# test photos cropped tightly round the letter, made again with make_tight_set.py
+tight_set/

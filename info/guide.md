@@ -104,7 +104,7 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 384/384 |
 | BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 277/296 (93.6%); whole picture cards 17/28 (was 4/28) |
-| Automated tests | 378, no known misses |
+| Automated tests | 387, no known misses |
 
 *Turned letters* (batch 16): tilted and sideways letters are read too. On `turned_set` (the test
 photos turned to 15-345°, made with `python make_turned_set.py`): 440 -> 811 of 1,390 right, with
@@ -148,6 +148,11 @@ pip install -r requirements.txt
 - *✕ Clear* (top right of the answer) clears the photo and its answer; for a letter opened from the chart
   it says *✕ Close* and goes back to the answer that was there before.
 - Small photos and screenshots are drawn large, so a box can be dragged on them.
+- *Tight crops* (batch 17): a letter cropped with no white space round it (a screenshot cut to the letter)
+  touches the photo's edges, where the clean-up removes desk edges and shadows. When the first reading is
+  unsure (under 90%) or refused, the photo is read again with a border of its own paper colour, and that
+  answer is used when it is at least 90% sure and surer. `tight_set/00`: 128 -> 133 of 139 right; every
+  upright score unchanged. Settings: `PAD_BELOW`, `PAD_SURE`, `PAD_EDGE`, `PAD_SIDES` in `predict.py`.
 - The page uses short animations (fades, Noghte hopping); they switch off when the computer or phone is
   set to reduce motion.
 - "No Persian letter found" and "many letters" answers appear on the answer side with the mascot;
@@ -178,7 +183,7 @@ reading order.
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `378 passed`.
+Expected result: `387 passed`.
 
 ### Score the test sets
 
@@ -205,6 +210,7 @@ Only needed if you change the model or the data.
 | 3. Train (also writes the letter profile and results; uses `member_handwriting/` too) | `python train.py` | *~2–3 h* |
 | 3b. Train the tilt model (turned letters too; writes `persian_cnn_tilt.pt`, `letter_profile_tilt.npz`, `persian_cnn_tilt.npz`, `results_tilt/`) | `python train.py --tilt` | *~1 h on the GPU* |
 | Score turned letters | `python make_turned_set.py` then `python score_testset.py turned_set` | ~10 min |
+| Score tightly cropped letters | `python make_tight_set.py` then `python score_testset.py tight_set` | ~5 min |
 | Only rebuild the letter profile | `python build_profile.py` | ~3 min |
 
 After retraining, run `python -m pytest` and all five score commands before using the new model.

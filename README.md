@@ -74,8 +74,10 @@ python predict.py photo.jpg --min-conf 0.8   (warn below 80% instead of 60%)
 5. *Turned letters* (`predict.py`): ruled paper photographed at a tilt is straightened along its lines;
    a second model trained on turned letters (`persian_cnn_tilt.pt`) also reads one-letter photos the
    main model is unsure of, and the surer answer wins.
-6. *Refusals* (`predict.py`): photos that are not a Persian letter get "No Persian letter found".
-7. *Lookup*: the letter is turned into its spelling, following the instructor's chart.
+6. *Tight crops* (`predict.py`): a letter cropped with no white space round it (it touches the photo's
+   edges) is also read with a border of its own paper colour, when the first reading is unsure.
+7. *Refusals* (`predict.py`): photos that are not a Persian letter get "No Persian letter found".
+8. *Lookup*: the letter is turned into its spelling, following the instructor's chart.
 
 ## Results
 
@@ -93,7 +95,8 @@ Full numbers in [`results/metrics.txt`](results/metrics.txt).
 | Hard set (`hard_set`) | 384/384 |
 | Rehearsal and marked sheets | 100% |
 | BUS testing dataset (`bus_test_set`) | 277/296 (93.6%) |
-| Turned letters, 15–345° (`turned_set`) | 811/1390 (58%), was 440 before batch 16 |
+| Turned letters, 15–345° (`turned_set`) | 825/1390 (59%), was 440 before batch 16 |
+| Tightly cropped letters, no white space (`tight_set/00`) | 133/139 (95.7%), was 128 before batch 17 |
 | Speed | ~3 ms per image (model only); ~0.1–0.3 s per photo in the app |
 
 Tilted and sideways letters are read too (batch 16): photos of turned letters (15–345°) went from
@@ -110,7 +113,7 @@ without PyTorch and with saving turned off. Steps: [`info/guide.md`](info/guide.
 ## Testing
 
 ```
-python -m pytest                        (all automated tests, ~4 min, expect 378 passed)
+python -m pytest                        (all automated tests, ~4 min, expect 387 passed)
 python score_testset.py rehearsal_set
 python score_testset.py hard_set
 python score_testset.py real_photos
@@ -118,6 +121,7 @@ python score_testset.py marked_set
 python score_testset.py multi_set
 python score_testset.py bus_test_set
 python make_turned_set.py               (then: python score_testset.py turned_set)
+python make_tight_set.py                (then: python score_testset.py tight_set)
 ```
 
 Test sets are *test only*: never train on them.
@@ -131,6 +135,7 @@ Test sets are *test only*: never train on them.
 | `bus_test_set/` | Arabic, pastel, coloured and cartoon letters |
 | `no_letter_set/` | Photos that must be refused (checked by `tests/test_no_letter.py`) |
 | `turned_set/` | The one-letter test photos turned to 10 angles (made by `make_turned_set.py`, not in git) |
+| `tight_set/` | The same photos cropped tightly round the letter: 0, 2 and 5% margin (`make_tight_set.py`, not in git) |
 
 ## Retraining (optional)
 
@@ -162,7 +167,7 @@ Compare the old and new scores before keeping a new model. To undo:
 | `train.py`, `prepare_data.py`, `convert_dataset.py`, `build_profile.py` | Training pipeline |
 | `numpy_cnn.py`, `persian_cnn.npz` | The model run with NumPy only, for the online copy |
 | `persian_cnn_tilt.pt`, `letter_profile_tilt.npz`, `persian_cnn_tilt.npz`, `results_tilt/` | The tilt model (turned letters) |
-| `make_turned_set.py` | Makes `turned_set/`, the turned test photos |
+| `make_turned_set.py`, `make_tight_set.py` | Make `turned_set/` and `tight_set/`, the turned and tightly cropped test photos |
 | `render.yaml`, `requirements-server.txt`, `.python-version` | Settings for putting it online on Render |
 | `score_testset.py` | Scoring a test-set folder |
 | `member_handwriting/` | Team handwriting used for training |
