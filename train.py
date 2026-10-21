@@ -1,7 +1,9 @@
-"""Train. Expects data/<source>/<class 0..31>/*.png (handwritten from convert_dataset.py; printed, negative and
+"""Train.   python train.py          the main model (upright letters): persian_cnn.pt, letter_profile.npz
+            python train.py --tilt   the tilt model (turned letters too): persian_cnn_tilt.pt, ..._tilt.npz
+Expects data/<source>/<class 0..31>/*.png (handwritten from convert_dataset.py; printed, negative and
 effects from prepare_data.py) and the team's own letters in member_handwriting/<member>/<NN>_<name>_*.jpg.
 Writes persian_cnn.pt, letter_profile.npz, results/metrics.txt and results/confusion_matrix.csv."""
-import glob, os, re, random, time
+import glob, os, re, random, sys, time
 from multiprocessing import Pool
 import cv2, numpy as np, torch, torch.nn as nn, torch.nn.functional as F
 from sklearn.model_selection import train_test_split
@@ -9,10 +11,13 @@ from sklearn.metrics import confusion_matrix, accuracy_score, classification_rep
 import torchvision.transforms.v2 as T
 from common import PersianCNN, preprocess, load_image, NAMES, SIZE, NOT_A_LETTER, NUM_CLASSES
 
-EPOCHS = 30
+TILT = "--tilt" in sys.argv
+EPOCHS = 40 if TILT else 30   # turned letters take longer to learn
 BATCH = 128
-MODEL_PATH = "persian_cnn.pt"
-RESULTS = "results"
+MODEL_PATH = "persian_cnn_tilt.pt" if TILT else "persian_cnn.pt"
+PROFILE_PATH = "letter_profile_tilt.npz" if TILT else "letter_profile.npz"
+WEIGHTS_PATH = "persian_cnn_tilt.npz" if TILT else "persian_cnn.npz"
+RESULTS = "results_tilt" if TILT else "results"
 # one whole font family is never trained on: its score shows how well the model reads an unseen font
 HELDOUT_FONTS = ("calibri", "calibrib", "calibril")
 # the team's handwriting (cut from the clear alphabet sheets): only ~125 photos, so each one is shown
@@ -20,6 +25,16 @@ HELDOUT_FONTS = ("calibri", "calibrib", "calibril")
 # in real_photos/ are the test for these writers.
 MEMBERS = "member_handwriting"
 MEMBER_REPEAT = 15
+
+# turned letters (batch 16): this share of the training letters is turned to a random angle, mostly a
+# tilt between -TURN_MAX and +TURN_MAX degrees (up to sideways), sometimes further (upside down),
+# the rest stay upright. The best epoch is still chosen on upright letters (the validation set is not
+# turned), so upright reading stays first. Note: some letters turned around ARE other letters
+# (upside-down pe looks like se, be like nun), so those pairs stay uncertain when upside down.
+TURN_SHARE = 0.5 if TILT else 0.0
+TURN_MAX = 90
+TURN_FAR = 0.2      # share of the turned letters turned past sideways (90-270): fewer than in a first try
+                    # (any angle equally often), which lost a few upright letters to upside-down look-alikes
 
 aug = T.Compose([T.RandomAffine(8, translate=(.1, .1), scale=(.9, 1.1))])
 blur = T.GaussianBlur(3, sigma=(0.1, 1.0))
@@ -38,6 +53,20 @@ def font_of(path):
     return name.rsplit("_", 2)[0] if os.sep + "printed" + os.sep in os.path.normpath(path) else ""
 
 
+def load_workers():
+    """How many processes prepare the images. Each one loads PyTorch; the GPU (CUDA) build is so big
+    that one per core (16) runs out of memory on a 16 GB laptop, so it uses at most 6."""
+    n = os.cpu_count() or 1
+    return min(n, 6) if torch.version.cuda else n
+
+
+def keep_awake():
+    """Windows: don't go to sleep while training runs (until this program ends; closing the lid still can)."""
+    if os.name == "nt":
+        import ctypes
+        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)   # ES_CONTINUOUS | SYSTEM_REQUIRED
+
+
 def load_data():
     """Preprocess every training image (in parallel). Unreadable / blank files are skipped but reported."""
     items = [(p, c, source) for source in ("handwritten", "printed")
@@ -48,7 +77,7 @@ def load_data():
         m = re.match(r"(\d{2})_", os.path.basename(p))
         if m and int(m.group(1)) < 32:
             items.append((p, int(m.group(1)), "members"))
-    with Pool(os.cpu_count()) as pool:
+    with Pool(load_workers()) as pool:
         out = pool.map(_prep, [p for p, _, _ in items], chunksize=64)
     X, y, src, font, skipped = [], [], [], [], []
     for (p, c, source), (arr, err) in zip(items, out):
@@ -69,8 +98,38 @@ def _thin(t):
     return -F.max_pool2d(-t, 3, 1, 1)
 
 
+def turn(view, angle):
+    """A cleaned SIZE x SIZE letter turned by angle (degrees), then framed again the way preprocess()
+    frames a letter (tight crop, 1/8 margin, square, SIZE x SIZE), so it matches a turned photo."""
+    big = cv2.resize(view, (SIZE * 4, SIZE * 4), interpolation=cv2.INTER_LINEAR)   # finer turning
+    h, w = big.shape
+    m = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
+    c, s = abs(m[0, 0]), abs(m[0, 1])
+    nw, nh = int(h * s + w * c) + 2, int(h * c + w * s) + 2                         # room for the corners
+    m[0, 2] += nw / 2 - w / 2
+    m[1, 2] += nh / 2 - h / 2
+    ink = cv2.warpAffine(big, m, (nw, nh), flags=cv2.INTER_LINEAR, borderValue=0) > 0.5
+    pts = cv2.findNonZero(ink.astype(np.uint8))
+    if pts is None:
+        return view
+    x, y, w, h = cv2.boundingRect(pts)
+    side = max(w, h)
+    pad = max(2, side // 8)
+    sq = np.zeros((side + 2 * pad, side + 2 * pad), np.float32)
+    oy, ox = (sq.shape[0] - h) // 2, (sq.shape[1] - w) // 2
+    sq[oy:oy + h, ox:ox + w] = ink[y:y + h, x:x + w]
+    return cv2.resize(sq, (SIZE, SIZE), interpolation=cv2.INTER_AREA)
+
+
 def batch(X, y, ids, train):
-    t = torch.tensor(X[ids]).unsqueeze(1)
+    xs = X[ids]
+    if train and TURN_SHARE:
+        xs = xs.copy()
+        for k in np.where(np.random.rand(len(xs)) < TURN_SHARE)[0]:
+            far = np.random.rand() < TURN_FAR
+            xs[k] = turn(xs[k], np.random.uniform(TURN_MAX, 360 - TURN_MAX) if far
+                         else np.random.uniform(-TURN_MAX, TURN_MAX))
+    t = torch.tensor(xs).unsqueeze(1)
     if train:
         t = torch.stack([aug(i) for i in t])
         r = torch.rand(len(t))
@@ -139,6 +198,7 @@ def report(model, X, y, src, te, held, dev, seconds):
 
 
 def main():
+    keep_awake()
     torch.manual_seed(0); random.seed(0); np.random.seed(0)
     torch.set_num_threads(os.cpu_count())
     t0 = time.time()
@@ -172,9 +232,9 @@ def main():
     model.load_state_dict(torch.load(MODEL_PATH, map_location=dev))
     report(model, X, y, src, te, held, dev, time.time() - t0)
     import build_profile                                  # what each letter looks like, for refusing non-letters
-    build_profile.build(model.cpu(), X, y)
+    build_profile.build(model.cpu(), X, y, os.path.abspath(PROFILE_PATH))
     import numpy_cnn                                      # the same weights as plain arrays, for the online copy
-    numpy_cnn.export_weights(MODEL_PATH)
+    numpy_cnn.export_weights(MODEL_PATH, os.path.abspath(WEIGHTS_PATH))
 
 
 if __name__ == "__main__":

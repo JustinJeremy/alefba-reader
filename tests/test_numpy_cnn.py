@@ -24,6 +24,14 @@ def test_weights_file_matches_the_trained_model():
             assert np.array_equal(saved[k], v.numpy()), k
 
 
+def test_tilt_weights_file_matches_the_tilt_model():
+    state = torch.load(predict.TILT_MODEL_PATH, map_location="cpu")
+    saved = np.load(predict.TILT_WEIGHTS_PATH)
+    for k, v in state.items():
+        if not k.endswith("num_batches_tracked"):
+            assert np.array_equal(saved[k], v.numpy()), k
+
+
 def test_numpy_and_pytorch_give_the_same_scores_and_answers():
     x = views()
     f_t, out_t = predict._TorchNet(predict.load_model()).forward(x)

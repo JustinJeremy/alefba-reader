@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from flask import Flask, jsonify, render_template, request
 from common import LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, load_image
-from predict import read_photo, network
+from predict import read_photo, warm_up
 
 # "Save as test photo" puts photos in a folder inside real_photos/, named <class>_<name>_<n>.jpg
 # (TEST ONLY, never train on them). Any folder made inside real_photos/ also shows up in the list.
@@ -19,7 +19,7 @@ PUBLIC = os.environ.get("ALEFBA_PUBLIC") == "1"
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
-network()                                 # load the model once, before the first photo
+warm_up()                                 # load the model(s) once, before the first photo
 
 
 @app.errorhandler(413)

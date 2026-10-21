@@ -18,7 +18,7 @@ The repository is private: ask JJ (JustinJeremy) to add you as a collaborator fi
    `cd Downloads`
 3. Copy the project from GitHub (sign in when asked):
    `git clone https://github.com/JustinJeremy/alefba-reader.git alefba_reader`
-4. Open the folder: *File → Open Folder… → Downloadslefba_reader*, then open a new terminal.
+4. Open the folder: *File → Open Folder… → Downloads\alefba_reader*, then open a new terminal.
 5. Install the libraries (a few minutes, torch is big): `pip install -r requirements.txt`
 6. Check it works: `python -m pytest` (about 4 min, all should pass).
 7. Start the app: `python app.py`, open `http://127.0.0.1:5000`, upload a photo, press *Read letter*.
@@ -104,11 +104,15 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 384/384 |
 | BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 277/296 (93.6%); whole picture cards 17/28 (was 4/28) |
-| Automated tests | 361, no known misses |
+| Automated tests | 378, no known misses |
 
-The letters must be upright: upside-down, sideways (90°) or mirrored letters are not read
-(small tilts up to about 10° are fine). Turned around, many letters become other letters
-(پ and ث, ب and ن), so the app cannot guess which way is up.
+*Turned letters* (batch 16): tilted and sideways letters are read too. On `turned_set` (the test
+photos turned to 15-345°, made with `python make_turned_set.py`): 440 -> 811 of 1,390 right, with
+every upright score unchanged. How: ruled paper photographed at a tilt is first straightened along its
+lines (`ruled_tilt` in `common.py`); and when the main model is unsure (under 97%) or refuses a photo
+of one letter, a second model trained on turned letters (`persian_cnn_tilt.pt`) reads it too, and the
+surer answer wins. Upside down stays hardest, because turned around some letters *are* other letters
+(پ and ث, ب and ن). Mirrored letters are not read.
 
 ---
 
@@ -174,7 +178,7 @@ reading order.
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `361 passed`.
+Expected result: `378 passed`.
 
 ### Score the test sets
 
@@ -199,9 +203,16 @@ Only needed if you change the model or the data.
 | 2. Printed letters, "not a letter" and hard copies (lines, grain, blackout) | `python prepare_data.py` | ~6 min |
 | Only the hard copies (after changing `effects.py`) | `python prepare_data.py --effects-only` | ~3 min |
 | 3. Train (also writes the letter profile and results; uses `member_handwriting/` too) | `python train.py` | *~2–3 h* |
+| 3b. Train the tilt model (turned letters too; writes `persian_cnn_tilt.pt`, `letter_profile_tilt.npz`, `persian_cnn_tilt.npz`, `results_tilt/`) | `python train.py --tilt` | *~1 h on the GPU* |
+| Score turned letters | `python make_turned_set.py` then `python score_testset.py turned_set` | ~10 min |
 | Only rebuild the letter profile | `python build_profile.py` | ~3 min |
 
 After retraining, run `python -m pytest` and all five score commands before using the new model.
+
+*Training on the GPU (much faster):* a separate environment with the GPU (CUDA) version of PyTorch is at
+`VS Code Project Files\alefba_gpu_env` (outside the project). From the project folder:
+`..\alefba_gpu_env\Scripts\python train.py --tilt`. Plug the laptop in and keep the lid open;
+Windows is kept awake while it trains.
 During training `persian_cnn.pt` is overwritten after every better round: do not use the app,
 run tests or commit until it has finished (copy the old model somewhere first to compare).
 If the results get worse, git still has the old model (`git checkout persian_cnn.pt letter_profile.npz`).
