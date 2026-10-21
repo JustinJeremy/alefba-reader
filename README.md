@@ -113,7 +113,7 @@ without PyTorch and with saving turned off. Steps: [`info/guide.md`](info/guide.
 ## Testing
 
 ```
-python -m pytest                        (all automated tests, ~4 min, expect 387 passed)
+python -m pytest                        (all automated tests, ~4 min, expect 388 passed)
 python score_testset.py rehearsal_set
 python score_testset.py hard_set
 python score_testset.py real_photos

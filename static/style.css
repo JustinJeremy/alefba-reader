@@ -175,18 +175,33 @@ h1, h2 { font-family: var(--heading); margin: 0; }
   gap: 12px;
 }
 
-.brand > div { flex: 1 1 auto; min-width: 0; }
+.home {                        /* logo + name: a link back to a fresh start */
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 12px;
+}
 
-.brand h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  line-height: 1.2;
+.home:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
+.home .name { display: grid; }
+
+.home .title {
+  margin: 0;
+  font: 700 1.5rem/1.2 var(--heading);
 }
 
 .fa-word {
   margin: 0;
   font: 700 1.25rem/1.2 var(--text);
   color: var(--gold-text);
+}
+
+@media (hover: hover) {
+  .home:hover .title { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
 }
 
 
@@ -403,6 +418,13 @@ button:active { transform: translateY(1px); }
 }
 
 .cam-extra:not(:has(button:not([hidden]))) { display: none; }
+
+/* a button left alone on the last row ("Turn off camera" under the other two) sits in the middle */
+.cam-extra > button:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: calc(50% - 5px);
+}
 
 button.light {                  /* "Take photo" */
   background: #fff7ec;

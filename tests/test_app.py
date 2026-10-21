@@ -216,3 +216,11 @@ def test_file_labels_match_readme_names():
     from app import file_label
     assert [file_label(i) for i in (0, 1, 7, 20, 30, 31)] == ["00_alef", "01_be", "07_he", "20_eyn", "30_he2", "31_ye"]
     assert len({file_label(i) for i in range(32)}) == 32
+
+
+def test_logo_and_name_link_back_to_a_fresh_start(client):
+    html = client.get("/").data.decode("utf-8")
+    import re
+    link = re.search(r'<a class="home" href="/"[^>]*>(.*?)</a>', html, re.S)
+    assert link and "noghte logo" in link[1] and "Alefba Reader" in link[1] and "الفبا" in link[1]
+    assert 'id="themeBtn"' not in link[1]                      # the dark-mode button is not part of the link
