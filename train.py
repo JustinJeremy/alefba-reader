@@ -21,13 +21,15 @@ HELDOUT_FONTS = ("calibri", "calibrib", "calibril")
 MEMBERS = "member_handwriting"
 MEMBER_REPEAT = 15
 
-# tilted letters (batch 16): this share of the training letters is turned to a random angle between
-# -TURN_MAX and +TURN_MAX degrees (sideways at most, never upside down),
+# turned letters (batch 16): this share of the training letters is turned to a random angle, mostly a
+# tilt between -TURN_MAX and +TURN_MAX degrees (up to sideways), sometimes further (upside down),
 # the rest stay upright. The best epoch is still chosen on upright letters (the validation set is not
 # turned), so upright reading stays first. Note: some letters turned around ARE other letters
 # (upside-down pe looks like se, be like nun), so those pairs stay uncertain when upside down.
 TURN_SHARE = 0.5
-TURN_MAX = 90       # (a first try with 0-360 also learnt upside-down letters and lost upright ones)
+TURN_MAX = 90
+TURN_FAR = 0.2      # share of the turned letters turned past sideways (90-270): fewer than in a first try
+                    # (any angle equally often), which lost a few upright letters to upside-down look-alikes
 
 aug = T.Compose([T.RandomAffine(8, translate=(.1, .1), scale=(.9, 1.1))])
 blur = T.GaussianBlur(3, sigma=(0.1, 1.0))
@@ -119,7 +121,9 @@ def batch(X, y, ids, train):
     if train and TURN_SHARE:
         xs = xs.copy()
         for k in np.where(np.random.rand(len(xs)) < TURN_SHARE)[0]:
-            xs[k] = turn(xs[k], np.random.uniform(-TURN_MAX, TURN_MAX))
+            far = np.random.rand() < TURN_FAR
+            xs[k] = turn(xs[k], np.random.uniform(TURN_MAX, 360 - TURN_MAX) if far
+                         else np.random.uniform(-TURN_MAX, TURN_MAX))
     t = torch.tensor(xs).unsqueeze(1)
     if train:
         t = torch.stack([aug(i) for i in t])
