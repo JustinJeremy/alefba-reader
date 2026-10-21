@@ -1,7 +1,10 @@
 """Shared pieces: classes, lookup table, preprocessing, model."""
 import cv2
 import numpy as np
-import torch.nn as nn
+try:
+    import torch.nn as nn
+except ImportError:          # the online copy has no PyTorch; it reads with numpy_cnn.py instead
+    nn = None
 
 # 32 classes in standard Persian alphabetical order (index = class id)
 LETTERS = list("ابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی")
@@ -635,7 +638,7 @@ def preprocess(img_bgr: np.ndarray, strict: bool = False, captions: bool = False
     return out.astype(np.float32) / 255.0
 
 
-class PersianCNN(nn.Module):
+class PersianCNN(nn.Module if nn else object):    # (without PyTorch it only exists by name)
     def __init__(self, n=NUM_CLASSES):
         super().__init__()
         def block(i, o):

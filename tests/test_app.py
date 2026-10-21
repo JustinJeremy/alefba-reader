@@ -94,6 +94,27 @@ def test_page_works_offline_fonts_and_icon_come_from_the_app(client):
     assert client.get("/static/icon.svg").status_code == 200
 
 
+def test_public_mode_hides_saving_and_refuses_it(client, tmp_path, monkeypatch):
+    import app as app_module
+    monkeypatch.setattr(app_module, "PUBLIC", True)
+    monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))
+    html = client.get("/").data.decode("utf-8")
+    assert "data-public" in html and 'id="savebox" hidden data-off' in html
+    assert "real_photos/" not in html                           # no server folders listed
+    r = client.post("/save", data={"image": (io.BytesIO(chart_bytes()), "x.jpg"), "class_id": "1",
+                                   "folder": "random_test_photos"}, content_type="multipart/form-data")
+    assert r.status_code == 403 and "turned off" in r.get_json()["error"]
+    assert not any(tmp_path.rglob("*.jpg"))                     # nothing written
+    assert post(client, chart_bytes()).status_code == 200       # reading still works
+
+
+def test_laptop_mode_keeps_saving(client):
+    import app as app_module
+    assert app_module.PUBLIC is False                           # ALEFBA_PUBLIC is not set when testing
+    html = client.get("/").data.decode("utf-8")
+    assert "data-off" not in html and "real_photos/random_test_photos" in html
+
+
 def test_save_writes_labelled_photo(client, tmp_path, monkeypatch):
     import app as app_module
     monkeypatch.setattr(app_module, "PHOTOS_DIR", str(tmp_path))

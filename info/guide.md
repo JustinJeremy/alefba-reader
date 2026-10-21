@@ -104,7 +104,7 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 384/384 |
 | BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 277/296 (93.6%); whole picture cards 17/28 (was 4/28) |
-| Automated tests | 355, no known misses |
+| Automated tests | 361, no known misses |
 
 The letters must be upright: upside-down, sideways (90°) or mirrored letters are not read
 (small tilts up to about 10° are fine). Turned around, many letters become other letters
@@ -174,7 +174,7 @@ reading order.
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `355 passed`.
+Expected result: `361 passed`.
 
 ### Score the test sets
 
@@ -345,6 +345,48 @@ After any change: *restart the app*, press *Ctrl+F5*, and run *`python -m pytest
 
 Every threshold has a comment next to it with the numbers it was measured on. Read that before
 changing it, because loosening a refusal rule can start refusing real letters, or the other way round.
+
+---
+
+## 6. Putting it online (Render, free plan)
+
+*Not done yet: the files are ready, nothing is online.* The laptop app stays the one for the demo
+(no internet needed, never asleep).
+
+*What is prepared*
+
+| File | What it does |
+|---|---|
+| `render.yaml` | Tells Render how to build and start the app (free plan, public mode on) |
+| `requirements-server.txt` | The packages the online copy needs: no PyTorch, no training tools |
+| `.python-version` | Python 3.14 |
+| `numpy_cnn.py` | Runs the model with NumPy only (PyTorch needs about half of the free plan's 512 MB) |
+| `persian_cnn.npz` | The trained weights as plain arrays, made from `persian_cnn.pt` |
+
+*Public mode* (`ALEFBA_PUBLIC=1`, set by `render.yaml`): "Save as test photo" is hidden and the server
+refuses to save, so visitors cannot write files onto it. On the laptop nothing changes.
+
+*Steps (once)*
+
+1. Merge everything on GitHub (the online copy is built from `main`).
+2. On render.com: *New → Blueprint*, connect GitHub, pick `JustinJeremy/alefba-reader`, then *Apply*.
+   (Or *New → Web Service* by hand: runtime *Python*, build `pip install -r requirements-server.txt`,
+   start `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120`,
+   plan *Free*, and an environment variable `ALEFBA_PUBLIC` = `1`.)
+3. Wait for *Live* (about 3-5 min), then open the `https://alefba-reader....onrender.com` address it shows.
+4. Put that address in *Website* in the GitHub repo's About.
+
+After that, every merge on GitHub updates the website by itself.
+
+*Good to know*
+- The free plan sleeps after 15 min without visitors; the first visit after that takes about a minute.
+- It has a small share of one processor (0.1 CPU): expect a few seconds per photo, more for whole sheets.
+- The live camera works on phones there too (the site is https).
+
+*After retraining*, `train.py` also rewrites `persian_cnn.npz`; commit it together with `persian_cnn.pt`
+(`tests/test_numpy_cnn.py` fails if the two do not match). By hand: `python numpy_cnn.py`.
+To check on the laptop that the NumPy copy reads the same: `$env:ALEFBA_BACKEND="numpy"; python -m pytest`
+(PowerShell; takes about twice as long).
 
 ---
 

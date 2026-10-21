@@ -95,10 +95,15 @@ Full numbers in [`results/metrics.txt`](results/metrics.txt).
 Letters must be upright (small tilts up to about 10° are fine). Turned around, many letters
 become other letters (پ and ث, ب and ن), so the app can't tell which way is up.
 
+## Online copy (prepared, not deployed)
+
+`render.yaml`, `requirements-server.txt` and `numpy_cnn.py` let the app run on Render's free plan,
+without PyTorch and with saving turned off. Steps: [`info/guide.md`](info/guide.md), section 6.
+
 ## Testing
 
 ```
-python -m pytest                        (all automated tests, ~4 min, expect 355 passed)
+python -m pytest                        (all automated tests, ~4 min, expect 361 passed)
 python score_testset.py rehearsal_set
 python score_testset.py hard_set
 python score_testset.py real_photos
@@ -145,6 +150,8 @@ Compare the old and new scores before keeping a new model. To undo:
 | `segment.py` | Splitting a photo into several letters |
 | `effects.py` | Ruled lines, film grain and blackout effects for training |
 | `train.py`, `prepare_data.py`, `convert_dataset.py`, `build_profile.py` | Training pipeline |
+| `numpy_cnn.py`, `persian_cnn.npz` | The model run with NumPy only, for the online copy |
+| `render.yaml`, `requirements-server.txt`, `.python-version` | Settings for putting it online on Render |
 | `score_testset.py` | Scoring a test-set folder |
 | `member_handwriting/` | Team handwriting used for training |
 | `tests/` | Automated tests (`pytest`) |

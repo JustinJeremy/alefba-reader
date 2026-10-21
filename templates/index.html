@@ -16,7 +16,7 @@
   </script>
 </head>
 
-<body>
+<body{% if public %} data-public{% endif %}>
 
 <!-- Noghte, the ink-dot mascot: copied by app.js into every element with class "noghte".
      data-mood on that element picks the face: idle, happy, thinking or puzzled. -->
@@ -238,7 +238,7 @@
   </main>
 
   <!-- left, under the photo (on phones: last): keep the photo as a test image (folded until opened) -->
-  <details id="savebox" hidden>
+  <details id="savebox" hidden{% if public %} data-off{% endif %}>
     <summary><h2>Save as test photo</h2><span class="toggle"></span></summary>
     <div class="save-fields">
       <label for="truth" id="truthLabel">This letter really is:</label>

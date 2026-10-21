@@ -1,0 +1,15 @@
+# Render Blueprint: the online copy of Alefba Reader on Render's free plan.
+# Render reads this file when you choose New > Blueprint and pick this GitHub repo (see info/guide.md).
+services:
+  - type: web
+    name: alefba-reader
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-server.txt
+    # one worker keeps memory low (free plan: 512 MB); 2 threads let two visitors read at once
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: ALEFBA_PUBLIC          # public mode: no "Save as test photo" on the website
+        value: "1"

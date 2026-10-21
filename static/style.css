@@ -949,6 +949,8 @@ details > summary:focus-visible { outline: 3px solid var(--gold); outline-offset
 
 /* save as test photo */
 
+#savebox[data-off] { display: none !important; }   /* the online copy: saving is turned off */
+
 #savebox {
   align-self: start;
   margin: 0 16px 24px;

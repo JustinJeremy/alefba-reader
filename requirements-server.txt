@@ -1,0 +1,6 @@
+# the online copy (Render): reading only, no PyTorch (numpy_cnn.py runs the model), no training tools
+opencv-python-headless==5.0.0.93
+numpy==2.5.3
+pillow==12.3.0
+flask==3.0.3
+gunicorn==26.2.0

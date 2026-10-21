@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from flask import Flask, jsonify, render_template, request
 from common import LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, load_image
-from predict import read_photo, load_model
+from predict import read_photo, network
 
 # "Save as test photo" puts photos in a folder inside real_photos/, named <class>_<name>_<n>.jpg
 # (TEST ONLY, never train on them). Any folder made inside real_photos/ also shows up in the list.
@@ -13,9 +13,13 @@ PHOTOS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "real_phot
 DEFAULT_FOLDERS = ["random_test_photos", "multi_letter_photos", "JJ", "Ethan", "Mark", "Kaye"]
 MULTI_FOLDER = "multi_letter_photos"      # chosen automatically for photos of several letters
 
+# Public mode (the online copy, e.g. on Hugging Face Spaces): ALEFBA_PUBLIC=1 hides "Save as test photo"
+# and refuses /save, so visitors cannot write files onto the server. Unset on the laptop: nothing changes.
+PUBLIC = os.environ.get("ALEFBA_PUBLIC") == "1"
+
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
-load_model()
+network()                                 # load the model once, before the first photo
 
 
 @app.errorhandler(413)
@@ -95,7 +99,7 @@ def crashed(e):
 def home():
     letters = [{"id": i, "letter": LETTERS[i], "latin": LOOKUP[i], "ascii": LOOKUP_ASCII[i], "name": NAMES[i]}
                for i in range(32)]
-    return render_template("index.html", letters=letters, folders=save_folders())
+    return render_template("index.html", letters=letters, folders=[] if PUBLIC else save_folders(), public=PUBLIC)
 
 
 @app.post("/predict")
@@ -138,6 +142,8 @@ def save():
     """Keep a photo as a labelled test image: the person says which letter it really is
     (class_id), or, for a photo of several letters, which letters they are in reading order
     (class_ids, e.g. "6,5")."""
+    if PUBLIC:
+        return jsonify(error="Saving test photos is turned off on the online version."), 403
     f = request.files.get("image")
     try:
         if request.form.get("class_ids"):
