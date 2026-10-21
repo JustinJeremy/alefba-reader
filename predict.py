@@ -1,5 +1,5 @@
 """CLI:  python predict.py a.jpg b.jpg c.jpg [--ascii]"""
-import argparse, os, sys, time
+import argparse, contextlib, os, sys, threading, time
 import cv2
 import numpy as np
 try:
@@ -10,7 +10,7 @@ import marks
 from numpy_cnn import NumpyCNN, softmax, normalize
 from segment import find_letters
 from common import (PersianCNN, preprocess, caption_suspect, load_image, _binary, _prepare_bw, _grain,
-                    _flatten_lighting, colourful, ruled_lines, SIZE,
+                    _flatten_lighting, colourful, ruled_lines, ruled_tilt, SIZE,
                     LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, NOT_A_LETTER)
 
 # next to this file, so the app works no matter which folder it is started from
@@ -36,6 +36,13 @@ MIN_PERSIAN = 0.22   # on a photo with many shapes, the share that must look ver
 PERSIAN_CLOSE = 0.25 # (distance under PERSIAN_CLOSE). Batch 10 model: Persian alphabet sheets 0.40-0.44,
                      # English text 0.00 (batch 9 model used 0.15: sheets 0.32-0.36, English 0.00-0.12)
 PROFILE_PATH = os.path.join(os.path.dirname(MODEL_PATH), "letter_profile.npz")
+# the second model (batch 16), trained on turned letters too: asked only when the first model is unsure or
+# refuses a photo of one letter (python train.py --tilt makes these three files)
+TILT_MODEL_PATH = os.path.join(os.path.dirname(MODEL_PATH), "persian_cnn_tilt.pt")
+TILT_PROFILE_PATH = os.path.join(os.path.dirname(MODEL_PATH), "letter_profile_tilt.npz")
+TILT_WEIGHTS_PATH = os.path.join(os.path.dirname(MODEL_PATH), "persian_cnn_tilt.npz")
+BACKUP_BELOW = 0.97 # a one-letter reading less sure than this (or a refusal) is also read by the tilt model;
+                    # the surer of the two wins. Measured: upright scores unchanged, turned photos 440 -> 811/1390
 
 NO_LETTER_BLANK = "No Persian letter found: the photo is too dark or blank. Check the camera, the lighting and the lens."
 NO_LETTER = "No Persian letter found in this photo. Make sure one letter is clearly visible and fills most of the photo."
@@ -46,13 +53,36 @@ NOT_PERSIAN = "No Persian letter found: the writing in this photo does not look 
 _model = None
 _net = None
 _centres = None
+_tilt = {}              # the tilt model: net, centres (loaded when first needed)
+_use = threading.local()  # which model this thread reads with: "main" (default) or "tilt"
 # which maths runs the model: PyTorch when it is installed (the laptop), else NumPy (the online copy).
 # ALEFBA_BACKEND=numpy forces NumPy, to check on the laptop that both give the same answers.
 BACKEND = "numpy" if torch is None or os.environ.get("ALEFBA_BACKEND") == "numpy" else "torch"
 
 
+def has_tilt_model():
+    weights = TILT_WEIGHTS_PATH if BACKEND == "numpy" else TILT_MODEL_PATH
+    return os.path.isfile(weights) and os.path.isfile(TILT_PROFILE_PATH)
+
+
+@contextlib.contextmanager
+def _using(which):
+    """Read with the main or the tilt model inside this block (per thread, so the web app's threads
+    reading two photos at once never mix them up)."""
+    before = getattr(_use, "which", "main")
+    _use.which = which
+    try:
+        yield
+    finally:
+        _use.which = before
+
+
 def _letter_centres():
     """Average feature vector of each letter (None if letter_profile.npz is missing)."""
+    if getattr(_use, "which", "main") == "tilt":
+        if "centres" not in _tilt:
+            _tilt["centres"] = np.load(TILT_PROFILE_PATH)["centres"]
+        return _tilt["centres"]
     global _centres
     if _centres is None and os.path.isfile(PROFILE_PATH):
         _centres = np.load(PROFILE_PATH)["centres"]
@@ -80,8 +110,24 @@ class _TorchNet:
             return f.numpy(), self.m.head[3:](f).numpy()
 
 
+def warm_up():
+    """Load the model(s) before the first photo (the web app does this when it starts)."""
+    network()
+    if has_tilt_model():
+        with _using("tilt"):
+            network(); _letter_centres()
+
+
 def network():
     """The model, ready to read letters (loaded once)."""
+    if getattr(_use, "which", "main") == "tilt":
+        if "net" not in _tilt:
+            if BACKEND == "numpy":
+                _tilt["net"] = NumpyCNN(TILT_WEIGHTS_PATH)
+            else:
+                m = PersianCNN(); m.load_state_dict(torch.load(TILT_MODEL_PATH, map_location="cpu")); m.eval()
+                _tilt["net"] = _TorchNet(m)
+        return _tilt["net"]
     global _net
     if _net is None:
         _net = NumpyCNN() if BACKEND == "numpy" else _TorchNet(load_model())
@@ -142,7 +188,99 @@ def predict_with_view(img, topk=3, select=None):
     return res, view, how
 
 
+LEVEL_BELOW = 1.01  # tilted ruled paper is always also read straightened (a turned letter can be read
+                    # wrongly but surely, e.g. a tilted be as pe at 90%)
+LEVEL_SURE = 0.9    # the straightened reading is used only when at least this sure,
+LEVEL_BETTER = 0.0  # and at least as sure as the reading as it is
+LEVEL_HOW = " (straightened along the ruled lines)"
+
+
 def read_photo(img, topk=3, select=None):
+    """Read every letter in a photo (see _read_level). A photo of one letter that the main model reads
+    unsurely (below BACKUP_BELOW) or refuses is also read by the tilt model (trained on turned letters
+    too); the surer reading wins, so a sure upright reading never changes. Photos of several letters
+    are rows read right to left, so they stay with the main model."""
+    try:
+        first, err = _read_level(img, topk, select), None
+    except ValueError as e:
+        first, err = None, e
+    sure = lambda r: min(x[0][1] for x, _ in r[0])
+    if not has_tilt_model() or (first and (len(first[0]) > 1 or sure(first) >= BACKUP_BELOW)):
+        if err:
+            raise err
+        return first
+    with _using("tilt"):
+        try:
+            second = _read_level(img, topk, select)
+        except ValueError:
+            second = None
+    # only one letter from the tilt model: it is asked about one-letter photos, and several "letters"
+    # from it are things the main model refused (a game screenshot read as 5 letters)
+    if second is not None and len(second[0]) == 1 and (first is None or sure(second) > sure(first)):
+        return second
+    if err:
+        raise err
+    return first
+
+
+def _read_level(img, topk=3, select=None):
+    """Read every letter in a photo (see _read_upright). Ruled paper photographed at a tilt (or sideways)
+    is also read straightened along its lines, when the photo as it is reads unsurely or not at all;
+    the surer reading wins, so a confident reading never changes."""
+    try:
+        first, err = _read_upright(img, topk, select), None
+    except ValueError as e:
+        first, err = None, e
+    if select is not None or (first and min(r[0][1] for r, _ in first[0]) >= LEVEL_BELOW):
+        if err:
+            raise err
+        return first
+    # colourful photos are not straightened: the edges in a picture card's drawing can look like ruling,
+    # and notebook paper is (nearly always) not colourful
+    tilt = None if colourful(img) else ruled_tilt(img)
+    if tilt is None:
+        if err:
+            raise err
+        return first
+    level, back = _level(img, tilt)
+    try:
+        letters, how = _read_upright(level, topk, None)
+    except ValueError:
+        if err:
+            raise err
+        return first
+    sure = min(r[0][1] for r, _ in letters)
+    if sure < LEVEL_SURE or (first and sure < min(r[0][1] for r, _ in first[0]) + LEVEL_BETTER):
+        if err:
+            raise err
+        return first
+    return [(res, (view, _box_back(box, back, img.shape))) for res, (view, box) in letters], how + LEVEL_HOW
+
+
+def _level(img, angle):
+    """img turned back by angle (the ruled lines level), on a canvas big enough for all of it.
+    -> (levelled image, matrix from levelled back to img coordinates)"""
+    h, w = img.shape[:2]
+    m = cv2.getRotationMatrix2D((w / 2, h / 2), -angle, 1.0)
+    c, s = abs(m[0, 0]), abs(m[0, 1])
+    nw, nh = int(h * s + w * c), int(h * c + w * s)
+    m[0, 2] += nw / 2 - w / 2
+    m[1, 2] += nh / 2 - h / 2
+    level = cv2.warpAffine(img, m, (nw, nh), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    return level, cv2.invertAffineTransform(m)
+
+
+def _box_back(box, back, shape):
+    """A box (x, y, w, h) in the levelled image -> the box around it in the original photo."""
+    x, y, w, h = box
+    pts = np.array([[x, y], [x + w, y], [x, y + h], [x + w, y + h]], np.float64)
+    p = pts @ back[:, :2].T + back[:, 2]
+    x0, y0 = np.clip(p.min(0), 0, [shape[1] - 1, shape[0] - 1]).astype(int)
+    x1, y1 = np.clip(p.max(0), 0, [shape[1], shape[0]]).astype(int)
+    return int(x0), int(y0), int(max(1, x1 - x0)), int(max(1, y1 - y0))
+
+
+def _read_upright(img, topk=3, select=None):
     """Read every letter in a photo: one letter, a marked letter on a sheet, or a few separate letters.
     -> ([(top-k, (cleaned image, box in img)), ...] in reading order (right to left), how they were found)"""
     ox = oy = 0

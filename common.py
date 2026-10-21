@@ -502,6 +502,54 @@ def ruled_lines(img_bgr):
     return lines if lines.shape == (h, w) else cv2.resize(lines, (w, h), interpolation=cv2.INTER_NEAREST)
 
 
+TILT_MIN = 10       # ruled paper tilted less than this (degrees) is read as it is: the line removal copes
+TILT_LINES = 2      # at least this many long parallel lines (the ruling), so one straight stroke is not enough
+TILT_SPREAD = 2.0   # the lines agree on their angle within this (degrees)
+
+
+def ruled_tilt(img_bgr):
+    """Angle (degrees, counter-clockwise, -90..90) of the ruled lines when the paper is turned at least
+    TILT_MIN, else None. Long straight lines, nearly parallel, spread over the photo: notebook ruling.
+    Turning the photo back by this angle makes the lines level, and the letter upright again
+    (on ruled paper the lines show which way is up, apart from upside down)."""
+    if img_bgr is None or img_bgr.size == 0:
+        return None
+    gray = img_bgr if img_bgr.ndim == 2 else cv2.cvtColor(img_bgr[:, :, :3], cv2.COLOR_BGR2GRAY)
+    k = 600 / max(gray.shape)
+    if k < 1:
+        gray = cv2.resize(gray, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+    h, w = gray.shape
+    ink = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 25, 10)
+    segs = cv2.HoughLinesP(ink, 1, np.pi / 360, threshold=40, minLineLength=int(0.25 * min(h, w)), maxLineGap=10)
+    if segs is None:
+        return None
+    segs = segs.reshape(-1, 4).astype(float)                # (x1, y1, x2, y2) per line, any OpenCV version
+    ang = np.degrees(np.arctan2(-(segs[:, 3] - segs[:, 1]), segs[:, 2] - segs[:, 0]))   # image y points down
+    ang = (ang + 90) % 180 - 90                                                         # -90..90
+    length = np.hypot(segs[:, 2] - segs[:, 0], segs[:, 3] - segs[:, 1])
+    best, best_len = None, 0
+    for a in ang:                                     # the angle most of the long line length agrees on
+        d = np.abs((ang - a + 90) % 180 - 90)
+        tot = length[d <= TILT_SPREAD].sum()
+        if tot > best_len:
+            best, best_len = a, tot
+    def separate_lines(at):
+        """How many separate lines (not pieces of one line) run at this angle."""
+        near = np.abs((ang - at + 90) % 180 - 90) <= TILT_SPREAD
+        nx, ny = -np.sin(np.radians(at)), -np.cos(np.radians(at))
+        mid = (segs[near][:, :2] + segs[near][:, 2:]) / 2
+        offsets = np.sort(mid[:, 0] * nx + mid[:, 1] * ny)
+        return (1 + int((np.diff(offsets) > 0.04 * min(h, w)).sum()) if len(offsets) else 0), near
+
+    if separate_lines(0)[0] >= TILT_LINES:            # level ruling is there: the paper is straight already
+        return None                                   # (a long upright stroke, like lam, is not ruling)
+    lines, near = separate_lines(best)
+    if lines < TILT_LINES:
+        return None
+    a = float(np.average(ang[near], weights=length[near]) if np.ptp(ang[near]) < 90 else best)
+    return a if abs(a) >= TILT_MIN else None
+
+
 def _ignore_margin(gray):
     """Overwrite the outermost pixels with their inner neighbours. Screenshots, crops and webcams
     often leave a 1-3 px white or black line on the edge; it fooled the shadow correction."""

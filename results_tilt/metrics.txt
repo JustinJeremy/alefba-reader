@@ -1,0 +1,52 @@
+input 64x64, 773,985 parameters, trained 40 epochs in 67.9 min
+train/val/test images: see split in train.py; test = 5871, held-out font test = 1206
+
+TEST accuracy (all):        0.9790
+TEST accuracy (handwritten): 0.9841  (n=3200)
+TEST accuracy (printed):     0.9709  (n=1373)
+TEST accuracy (negative):    0.9740  (n=539)
+TEST accuracy (effects):     0.9763  (n=759)
+UNSEEN FONT accuracy (calibri, calibrib, calibril): 0.9685  (n=1206)
+model inference time: 2.69 ms per image (batch of 1, cuda)
+
+real letters wrongly refused as 'not a letter': 0.0009  | non-letters caught: 0.9640
+Per-letter results on the test set:
+                precision    recall  f1-score   support
+
+          alef      0.976     0.988     0.982       164
+            be      0.936     0.988     0.961       163
+            pe      0.981     0.963     0.972       164
+            te      0.958     0.976     0.967       164
+            se      0.975     0.963     0.969       163
+           jim      0.963     0.969     0.966       163
+           che      0.987     0.951     0.969       163
+     he (jimi)      0.964     0.988     0.976       163
+           khe      0.982     0.994     0.988       163
+           dal      0.964     0.975     0.970       163
+           zal      0.988     0.982     0.985       164
+            re      0.969     0.945     0.957       164
+            ze      0.958     0.982     0.970       163
+           zhe      0.982     0.982     0.982       163
+           sin      0.994     1.000     0.997       163
+          shin      0.988     0.988     0.988       163
+           sad      0.994     1.000     0.997       163
+           zad      1.000     0.988     0.994       163
+            ta      0.976     0.994     0.985       164
+            za      0.988     0.975     0.981       163
+           eyn      0.982     0.994     0.988       164
+         gheyn      0.988     0.982     0.985       163
+            fe      0.953     1.000     0.976       163
+           qaf      1.000     0.970     0.985       164
+           kaf      0.952     0.973     0.962       183
+           gaf      0.988     0.976     0.982       164
+           lam      0.964     0.994     0.979       163
+           mim      1.000     0.982     0.991       163
+           nun      0.988     0.982     0.985       163
+           vav      0.988     0.988     0.988       164
+he (do-cheshm)      0.988     0.975     0.981       163
+            ye      0.985     0.980     0.983       204
+  NOT A LETTER      0.991     0.964     0.977       584
+
+      accuracy                          0.979      5871
+     macro avg      0.978     0.980     0.979      5871
+  weighted avg      0.979     0.979     0.979      5871

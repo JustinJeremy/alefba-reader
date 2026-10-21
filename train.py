@@ -1,7 +1,9 @@
-"""Train. Expects data/<source>/<class 0..31>/*.png (handwritten from convert_dataset.py; printed, negative and
+"""Train.   python train.py          the main model (upright letters): persian_cnn.pt, letter_profile.npz
+            python train.py --tilt   the tilt model (turned letters too): persian_cnn_tilt.pt, ..._tilt.npz
+Expects data/<source>/<class 0..31>/*.png (handwritten from convert_dataset.py; printed, negative and
 effects from prepare_data.py) and the team's own letters in member_handwriting/<member>/<NN>_<name>_*.jpg.
 Writes persian_cnn.pt, letter_profile.npz, results/metrics.txt and results/confusion_matrix.csv."""
-import glob, os, re, random, time
+import glob, os, re, random, sys, time
 from multiprocessing import Pool
 import cv2, numpy as np, torch, torch.nn as nn, torch.nn.functional as F
 from sklearn.model_selection import train_test_split
@@ -9,10 +11,13 @@ from sklearn.metrics import confusion_matrix, accuracy_score, classification_rep
 import torchvision.transforms.v2 as T
 from common import PersianCNN, preprocess, load_image, NAMES, SIZE, NOT_A_LETTER, NUM_CLASSES
 
-EPOCHS = 40        # (30 before batch 16: turned letters take longer to learn)
+TILT = "--tilt" in sys.argv
+EPOCHS = 40 if TILT else 30   # turned letters take longer to learn
 BATCH = 128
-MODEL_PATH = "persian_cnn.pt"
-RESULTS = "results"
+MODEL_PATH = "persian_cnn_tilt.pt" if TILT else "persian_cnn.pt"
+PROFILE_PATH = "letter_profile_tilt.npz" if TILT else "letter_profile.npz"
+WEIGHTS_PATH = "persian_cnn_tilt.npz" if TILT else "persian_cnn.npz"
+RESULTS = "results_tilt" if TILT else "results"
 # one whole font family is never trained on: its score shows how well the model reads an unseen font
 HELDOUT_FONTS = ("calibri", "calibrib", "calibril")
 # the team's handwriting (cut from the clear alphabet sheets): only ~125 photos, so each one is shown
@@ -26,7 +31,7 @@ MEMBER_REPEAT = 15
 # the rest stay upright. The best epoch is still chosen on upright letters (the validation set is not
 # turned), so upright reading stays first. Note: some letters turned around ARE other letters
 # (upside-down pe looks like se, be like nun), so those pairs stay uncertain when upside down.
-TURN_SHARE = 0.5
+TURN_SHARE = 0.5 if TILT else 0.0
 TURN_MAX = 90
 TURN_FAR = 0.2      # share of the turned letters turned past sideways (90-270): fewer than in a first try
                     # (any angle equally often), which lost a few upright letters to upside-down look-alikes
@@ -227,9 +232,9 @@ def main():
     model.load_state_dict(torch.load(MODEL_PATH, map_location=dev))
     report(model, X, y, src, te, held, dev, time.time() - t0)
     import build_profile                                  # what each letter looks like, for refusing non-letters
-    build_profile.build(model.cpu(), X, y)
+    build_profile.build(model.cpu(), X, y, os.path.abspath(PROFILE_PATH))
     import numpy_cnn                                      # the same weights as plain arrays, for the online copy
-    numpy_cnn.export_weights(MODEL_PATH)
+    numpy_cnn.export_weights(MODEL_PATH, os.path.abspath(WEIGHTS_PATH))
 
 
 if __name__ == "__main__":

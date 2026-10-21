@@ -24,13 +24,13 @@ def features(model, X, batch=512):
     return np.concatenate(out)
 
 
-def build(model, X, y):
+def build(model, X, y, path=PROFILE_PATH):
     X, y = X[y < 32], y[y < 32]                       # the 32 letters only, not the "not a letter" images
     F = features(model, X)
     centres = np.stack([F[y == c].mean(0) for c in range(32)])
     centres /= np.linalg.norm(centres, axis=1, keepdims=True)
     dist = 1 - (F * centres[y]).sum(1)
-    np.savez(PROFILE_PATH, centres=centres.astype(np.float32))
+    np.savez(path, centres=centres.astype(np.float32))
     print(f"letter profile saved: distance of training letters to their own average "
           f"median {np.median(dist):.3f}, 99th percentile {np.percentile(dist, 99):.3f}, max {dist.max():.3f}")
 

@@ -84,5 +84,6 @@ and our team's own handwriting.
 | Speed | under half a second per photo (about 1 second for a full sheet) |
 
 *Limits:*
-- The letter must be the right way up. Turned around, some letters look like other letters (پ and ث).
+- Upright reads best. Tilted and sideways letters work too (a second model, trained on turned letters,
+  helps when the first is unsure), but upside down some letters look like other letters (پ and ث).
 - It reads separate letters, not joined-up words.

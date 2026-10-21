@@ -92,8 +92,11 @@ Full numbers in [`results/metrics.txt`](results/metrics.txt).
 | BUS testing dataset (`bus_test_set`) | 277/296 (93.6%) |
 | Speed | ~3 ms per image (model only); ~0.1–0.3 s per photo in the app |
 
-Letters must be upright (small tilts up to about 10° are fine). Turned around, many letters
-become other letters (پ and ث, ب and ن), so the app can't tell which way is up.
+Tilted and sideways letters are read too (batch 16): photos of turned letters (15–345°) went from
+440 to 811 of 1,390 right, with every upright score unchanged. Ruled paper photographed at a tilt is
+straightened along its lines first; a second model, trained on turned letters, is asked when the main
+model is unsure. Upside down stays hardest: turned around, some letters *are* other letters
+(پ and ث, ب and ن). Mirrored letters are not read.
 
 ## Online copy (prepared, not deployed)
 
@@ -103,7 +106,7 @@ without PyTorch and with saving turned off. Steps: [`info/guide.md`](info/guide.
 ## Testing
 
 ```
-python -m pytest                        (all automated tests, ~4 min, expect 361 passed)
+python -m pytest                        (all automated tests, ~4 min, expect 378 passed)
 python score_testset.py rehearsal_set
 python score_testset.py hard_set
 python score_testset.py real_photos
