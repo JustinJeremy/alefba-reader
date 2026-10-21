@@ -2,8 +2,12 @@
 import argparse, os, sys, time
 import cv2
 import numpy as np
-import torch
+try:
+    import torch
+except ImportError:          # the online copy runs without PyTorch: numpy_cnn.py does the same maths
+    torch = None
 import marks
+from numpy_cnn import NumpyCNN, softmax, normalize
 from segment import find_letters
 from common import (PersianCNN, preprocess, caption_suspect, load_image, _binary, _prepare_bw, _grain,
                     _flatten_lighting, colourful, ruled_lines, SIZE,
@@ -40,7 +44,11 @@ NO_LETTER_EDGE = ("No complete Persian letter found: the shape found runs off th
 NOT_PERSIAN = "No Persian letter found: the writing in this photo does not look like Persian letters."
 
 _model = None
+_net = None
 _centres = None
+# which maths runs the model: PyTorch when it is installed (the laptop), else NumPy (the online copy).
+# ALEFBA_BACKEND=numpy forces NumPy, to check on the laptop that both give the same answers.
+BACKEND = "numpy" if torch is None or os.environ.get("ALEFBA_BACKEND") == "numpy" else "torch"
 
 
 def _letter_centres():
@@ -60,16 +68,31 @@ def load_model(path=MODEL_PATH):
         _model = m
     return _model
 
+
+class _TorchNet:
+    """The PyTorch model with the same forward() as NumpyCNN: (N, 64, 64) -> (256 features, 33 scores)."""
+    def __init__(self, m):
+        self.m = m
+
+    def forward(self, x):
+        with torch.no_grad():
+            f = self.m.head[:3](self.m.features(torch.tensor(np.asarray(x, np.float32)).unsqueeze(1)))
+            return f.numpy(), self.m.head[3:](f).numpy()
+
+
+def network():
+    """The model, ready to read letters (loaded once)."""
+    global _net
+    if _net is None:
+        _net = NumpyCNN() if BACKEND == "numpy" else _TorchNet(load_model())
+    return _net
+
 def _probs(img, strict=False, captions=False, colour=False):
     """-> (class probabilities, (cleaned SIZE x SIZE image the model looked at, letter box in img, features))"""
     info = {}
     view = preprocess(img, strict, captions, info, colour)
-    x = torch.tensor(view).unsqueeze(0).unsqueeze(0)
-    m = load_model()
-    with torch.no_grad():
-        f = m.head[:3](m.features(x))                 # the 256 numbers the answer is computed from
-        p = torch.softmax(m.head[3:](f), 1)[0]
-    return p, (view, info["box"], torch.nn.functional.normalize(f, dim=1)[0].numpy())
+    f, out = network().forward(view[None])     # f: the 256 numbers the answer is computed from
+    return softmax(out)[0], (view, info["box"], normalize(f)[0])
 
 
 def photo_contrast(img):
@@ -411,13 +434,11 @@ def looks_persian(img, limit=25):
         views.append(cv2.resize(sq, (SIZE, SIZE), interpolation=cv2.INTER_AREA).astype(np.float32) / 255)
     if not views:
         return True
-    m = load_model()
-    with torch.no_grad():
-        f = torch.nn.functional.normalize(m.head[:3](m.features(torch.tensor(np.array(views)).unsqueeze(1))), dim=1)
-        out = m.head[3:](f)
-        cls = out[:, :NOT_A_LETTER].argmax(1).numpy()          # nearest letter, for the distance
-        refused = (out.argmax(1) == NOT_A_LETTER).numpy()      # the model's own "not a letter" answer
-    dist = np.where(refused, 1.0, 1 - (f.numpy() * centres[cls]).sum(1))
+    f, out = network().forward(np.array(views))
+    f = normalize(f)
+    cls = out[:, :NOT_A_LETTER].argmax(1)                       # nearest letter, for the distance
+    refused = out.argmax(1) == NOT_A_LETTER                     # the model's own "not a letter" answer
+    dist = np.where(refused, 1.0, 1 - (f * centres[cls]).sum(1))
     return float((dist < PERSIAN_CLOSE).mean()) >= MIN_PERSIAN
 
 
@@ -468,8 +489,8 @@ def _read_one(img, topk, max_distance=MAX_DISTANCE):
     p = p[:NOT_A_LETTER]                            # only the 32 letters are ever shown as answers
     if letter_distance(int(p.argmax()), feats) > max_distance:
         raise ValueError(NO_LETTER)
-    conf, idx = p.topk(topk)
-    return [(int(i), float(c)) for c, i in zip(conf, idx)], (view, box)
+    idx = np.argsort(-p, kind="stable")[:topk]
+    return [(int(i), float(p[i])) for i in idx], (view, box)
 
 def predict_array(img, topk=3):
     return predict_with_view(img, topk)[0]

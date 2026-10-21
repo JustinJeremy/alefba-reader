@@ -383,6 +383,10 @@ async function send(url, fd) {
   try {
     r = await fetch(url, { method: "POST", body: fd });
   } catch (e) {
+    if (document.body.hasAttribute("data-public")) {       // the online copy: no laptop or terminal involved
+      throw new Error("Could not reach the app. Check your internet connection, then press the button again. "
+        + "(If the site was asleep, it can take about a minute to wake up.)");
+    }
     throw new Error("Could not reach the app. Check that 'python app.py' is still running in the "
       + "terminal (start it again if it stopped), then press the button again."
       + (isPhone ? " On a phone, also check that it is on the same Wi-Fi as the laptop." : ""));

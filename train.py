@@ -173,6 +173,8 @@ def main():
     report(model, X, y, src, te, held, dev, time.time() - t0)
     import build_profile                                  # what each letter looks like, for refusing non-letters
     build_profile.build(model.cpu(), X, y)
+    import numpy_cnn                                      # the same weights as plain arrays, for the online copy
+    numpy_cnn.export_weights(MODEL_PATH)
 
 
 if __name__ == "__main__":
