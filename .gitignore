@@ -9,3 +9,6 @@ __pycache__/
 .vscode/
 BackUp*/
 .pytest_cache/
+
+# test photos turned to other angles, made again with make_turned_set.py
+turned_set/

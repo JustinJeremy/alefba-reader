@@ -9,7 +9,7 @@ from sklearn.metrics import confusion_matrix, accuracy_score, classification_rep
 import torchvision.transforms.v2 as T
 from common import PersianCNN, preprocess, load_image, NAMES, SIZE, NOT_A_LETTER, NUM_CLASSES
 
-EPOCHS = 30
+EPOCHS = 40        # (30 before batch 16: turned letters take longer to learn)
 BATCH = 128
 MODEL_PATH = "persian_cnn.pt"
 RESULTS = "results"
@@ -20,6 +20,12 @@ HELDOUT_FONTS = ("calibri", "calibrib", "calibril")
 # in real_photos/ are the test for these writers.
 MEMBERS = "member_handwriting"
 MEMBER_REPEAT = 15
+
+# letters at any angle (batch 16): this share of the training letters is turned to a random angle (0-360),
+# the rest stay upright. The best epoch is still chosen on upright letters (the validation set is not
+# turned), so upright reading stays first. Note: some letters turned around ARE other letters
+# (upside-down pe looks like se, be like nun), so those pairs stay uncertain when upside down.
+TURN_SHARE = 0.5
 
 aug = T.Compose([T.RandomAffine(8, translate=(.1, .1), scale=(.9, 1.1))])
 blur = T.GaussianBlur(3, sigma=(0.1, 1.0))
@@ -38,6 +44,20 @@ def font_of(path):
     return name.rsplit("_", 2)[0] if os.sep + "printed" + os.sep in os.path.normpath(path) else ""
 
 
+def load_workers():
+    """How many processes prepare the images. Each one loads PyTorch; the GPU (CUDA) build is so big
+    that one per core (16) runs out of memory on a 16 GB laptop, so it uses at most 6."""
+    n = os.cpu_count() or 1
+    return min(n, 6) if torch.version.cuda else n
+
+
+def keep_awake():
+    """Windows: don't go to sleep while training runs (until this program ends; closing the lid still can)."""
+    if os.name == "nt":
+        import ctypes
+        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)   # ES_CONTINUOUS | SYSTEM_REQUIRED
+
+
 def load_data():
     """Preprocess every training image (in parallel). Unreadable / blank files are skipped but reported."""
     items = [(p, c, source) for source in ("handwritten", "printed")
@@ -48,7 +68,7 @@ def load_data():
         m = re.match(r"(\d{2})_", os.path.basename(p))
         if m and int(m.group(1)) < 32:
             items.append((p, int(m.group(1)), "members"))
-    with Pool(os.cpu_count()) as pool:
+    with Pool(load_workers()) as pool:
         out = pool.map(_prep, [p for p, _, _ in items], chunksize=64)
     X, y, src, font, skipped = [], [], [], [], []
     for (p, c, source), (arr, err) in zip(items, out):
@@ -69,8 +89,36 @@ def _thin(t):
     return -F.max_pool2d(-t, 3, 1, 1)
 
 
+def turn(view, angle):
+    """A cleaned SIZE x SIZE letter turned by angle (degrees), then framed again the way preprocess()
+    frames a letter (tight crop, 1/8 margin, square, SIZE x SIZE), so it matches a turned photo."""
+    big = cv2.resize(view, (SIZE * 4, SIZE * 4), interpolation=cv2.INTER_LINEAR)   # finer turning
+    h, w = big.shape
+    m = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
+    c, s = abs(m[0, 0]), abs(m[0, 1])
+    nw, nh = int(h * s + w * c) + 2, int(h * c + w * s) + 2                         # room for the corners
+    m[0, 2] += nw / 2 - w / 2
+    m[1, 2] += nh / 2 - h / 2
+    ink = cv2.warpAffine(big, m, (nw, nh), flags=cv2.INTER_LINEAR, borderValue=0) > 0.5
+    pts = cv2.findNonZero(ink.astype(np.uint8))
+    if pts is None:
+        return view
+    x, y, w, h = cv2.boundingRect(pts)
+    side = max(w, h)
+    pad = max(2, side // 8)
+    sq = np.zeros((side + 2 * pad, side + 2 * pad), np.float32)
+    oy, ox = (sq.shape[0] - h) // 2, (sq.shape[1] - w) // 2
+    sq[oy:oy + h, ox:ox + w] = ink[y:y + h, x:x + w]
+    return cv2.resize(sq, (SIZE, SIZE), interpolation=cv2.INTER_AREA)
+
+
 def batch(X, y, ids, train):
-    t = torch.tensor(X[ids]).unsqueeze(1)
+    xs = X[ids]
+    if train and TURN_SHARE:
+        xs = xs.copy()
+        for k in np.where(np.random.rand(len(xs)) < TURN_SHARE)[0]:
+            xs[k] = turn(xs[k], np.random.uniform(0, 360))
+    t = torch.tensor(xs).unsqueeze(1)
     if train:
         t = torch.stack([aug(i) for i in t])
         r = torch.rand(len(t))
@@ -139,6 +187,7 @@ def report(model, X, y, src, te, held, dev, seconds):
 
 
 def main():
+    keep_awake()
     torch.manual_seed(0); random.seed(0); np.random.seed(0)
     torch.set_num_threads(os.cpu_count())
     t0 = time.time()
