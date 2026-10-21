@@ -195,7 +195,80 @@ LEVEL_BETTER = 0.0  # and at least as sure as the reading as it is
 LEVEL_HOW = " (straightened along the ruled lines)"
 
 
+PAD_BELOW = 0.9     # a reading less sure than this (or a refusal): also read the photo with a border added
+                    # (0.97 also re-read a team photo cut tightly from its sheet, zal at 95%, as alef)
+PAD_SHARE = 0.25    # border on each side, x the photo's longer side (paper colour: the photo's median)
+PAD_EDGE = 0.07     # only for a tight crop: the letter comes this close (x the photo's side) to the edge
+PAD_SIDES = 3       # on at least this many sides (a normal photo with space round the letter is never padded)
+PAD_SURE = 0.9      # and the reading with the border is used only when at least this sure (a picture card
+                    # cut close round its picture was re-read wrongly at 71%)
+
+
 def read_photo(img, topk=3, select=None):
+    """Read every letter in a photo (see _read_two_models). A letter cropped tightly (no white space round
+    it, as a cropped screenshot often is) touches the photo's edges, and the clean-up removes shapes
+    along the edges (desk, shadow, frame). So a photo read unsurely or refused is also read with a
+    border of its own paper colour added; the surer one-letter reading wins, so a sure reading never
+    changes. Measured on tightly cropped test letters: 84.9% -> 97.8% right."""
+    try:
+        first, err = _read_two_models(img, topk, select), None
+    except ValueError as e:
+        first, err = None, e
+    sure = lambda r: min(x[0][1] for x, _ in r[0])
+    if select is not None or img is None or img.size == 0 or (first and (len(first[0]) > 1
+                                                                         or sure(first) >= PAD_BELOW)):
+        if err:
+            raise err
+        return first
+    if not _tight_crop(img):
+        if err:
+            raise err
+        return first
+    p = max(8, int(PAD_SHARE * max(img.shape[:2])))
+    try:
+        second = _read_two_models(_with_border(img, p), topk, None)
+    except ValueError:
+        second = None
+    # a tight crop is one plain letter: the border must not let it be read as a marked (circled) letter
+    # on a sheet (a photo of a person was read as "the circled letter" with the border round it)
+    if (second is not None and len(second[0]) == 1 and sure(second) >= PAD_SURE
+            and second[1].startswith("whole photo") and (first is None or sure(second) > sure(first))):
+        return [(res, (view, _box_unpad(box, p, img.shape))) for res, (view, box) in second[0]], second[1]
+    if err:
+        raise err
+    return first
+
+
+def _tight_crop(img):
+    """Is the photo cropped tightly round its writing (the ink comes close to PAD_SIDES of its edges)?"""
+    pts = cv2.findNonZero(_binary(img))
+    if pts is None:
+        return False
+    x, y, w, h = cv2.boundingRect(pts)
+    H, W = _binary(img).shape[:2]
+    gaps = (x / W, y / H, (W - x - w) / W, (H - y - h) / H)
+    return sum(g <= PAD_EDGE for g in gaps) >= PAD_SIDES
+
+
+def _with_border(img, p):
+    """img with p pixels of its own paper colour (the median colour) added on every side."""
+    if img.ndim == 3 and img.shape[2] == 4:                     # transparent PNG: on white, like the clean-up
+        a = img[:, :, 3:4] / 255.0
+        img = (img[:, :, :3] * a + 255 * (1 - a)).astype(np.uint8)
+    paper = ([int(v) for v in np.median(img.reshape(-1, img.shape[2]), axis=0)] if img.ndim == 3
+             else int(np.median(img)))
+    return cv2.copyMakeBorder(img, p, p, p, p, cv2.BORDER_CONSTANT, value=paper)
+
+
+def _box_unpad(box, p, shape):
+    """A box in the photo with the border -> the same box in the photo as given (kept inside it)."""
+    x, y, w, h = box
+    x0, y0 = min(max(x - p, 0), shape[1] - 1), min(max(y - p, 0), shape[0] - 1)
+    x1, y1 = min(max(x + w - p, x0 + 1), shape[1]), min(max(y + h - p, y0 + 1), shape[0])
+    return int(x0), int(y0), int(x1 - x0), int(y1 - y0)
+
+
+def _read_two_models(img, topk=3, select=None):
     """Read every letter in a photo (see _read_level). A photo of one letter that the main model reads
     unsurely (below BACKUP_BELOW) or refuses is also read by the tilt model (trained on turned letters
     too); the surer reading wins, so a sure upright reading never changes. Photos of several letters
