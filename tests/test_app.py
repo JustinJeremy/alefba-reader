@@ -224,3 +224,11 @@ def test_logo_and_name_link_back_to_a_fresh_start(client):
     link = re.search(r'<a class="home" href="/"[^>]*>(.*?)</a>', html, re.S)
     assert link and "noghte logo" in link[1] and "Alefba Reader" in link[1] and "الفبا" in link[1]
     assert 'id="themeBtn"' not in link[1]                      # the dark-mode button is not part of the link
+
+
+def test_other_guesses_are_folded_and_the_session_can_be_cleared(client):
+    import re
+    html = client.get("/").data.decode("utf-8")
+    box = re.search(r'<details id="altsBox" hidden>(.*?)</details>', html, re.S)
+    assert box and "Other possible letters" in box[1] and 'id="alts"' in box[1]   # closed: no "open"
+    assert 'id="clearSession"' in html and 'aria-label="Clear this session"' in html

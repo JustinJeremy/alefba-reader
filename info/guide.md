@@ -104,7 +104,7 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 384/384 |
 | BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 277/296 (93.6%); whole picture cards 17/28 (was 4/28) |
-| Automated tests | 388, no known misses |
+| Automated tests | 389, no known misses |
 
 *Turned letters* (batch 16): tilted and sideways letters are read too. On `turned_set` (the test
 photos turned to 15-345°, made with `python make_turned_set.py`): 440 -> 811 of 1,390 right, with
@@ -141,7 +141,8 @@ pip install -r requirements.txt
 - The moon / sun button switches light and dark mode; the browser remembers the choice.
 - Clicking the logo, "Alefba Reader" or الفبا starts the page again (like reloading it).
 - *This session* (top of the answer side) lists the letters read since the page was opened; click one
-  to show its photo and answer again. It empties when the page is reloaded.
+  to show its photo and answer again; ✕ clears it. It also empties when the page is reloaded.
+- *Other possible letters* under the answer is folded: only the top answer shows until it is opened.
 - *Alphabet chart* (under the buttons) shows all 32 letters; clicking one shows it like an answer,
   without a photo. *Copy* next to the spelling copies it.
 - *How the app reads your photo* and *Save as test photo* start folded: click their titles to open them.
@@ -184,7 +185,7 @@ reading order.
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `388 passed`.
+Expected result: `389 passed`.
 
 ### Score the test sets
 
