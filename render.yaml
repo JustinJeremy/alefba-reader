@@ -13,3 +13,11 @@ services:
     envVars:
       - key: ALEFBA_PUBLIC          # public mode: no "Save as test photo" on the website
         value: "1"
+      # the free plan has a small share of one processor: one thread each for NumPy and OpenCV,
+      # so they do not start a thread per server core and wait on each other
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: OPENCV_FOR_THREADS_NUM
+        value: "1"
