@@ -46,9 +46,9 @@ stage where the letter is shown large, next to its spelling and how sure the app
   the answer, starts over. Small photos are drawn large so a box can be dragged on them.
 - Drag a box on the photo to read only that part.
 - On a whole alphabet sheet with no mark, the app asks for one, or you can drag a box around the letter.
-- The answer shows the letter, its spelling (with a *Copy* button), how sure the app is, other possible
-  letters, and how the letter looks inside a word (at the start, in the middle, at the end).
-- *This session* lists every letter read since the page was opened; click one to see it again.
+- The answer shows the letter, its spelling (with a *Copy* button), how sure the app is, the other possible
+  letters (folded until opened), and how the letter looks inside a word (at the start, in the middle, at the end).
+- *This session* lists every letter read since the page was opened; click one to see it again, or ✕ to clear it.
 - *Alphabet chart* shows all 32 letters with their spellings; click one to see it large.
 - *How the app reads your photo* and *Save as test photo* are folded; click to open them.
   Saving puts the photo into the chosen `real_photos/` folder on the laptop (also from a phone).
@@ -113,7 +113,7 @@ without PyTorch and with saving turned off. Steps: [`info/guide.md`](info/guide.
 ## Testing
 
 ```
-python -m pytest                        (all automated tests, ~4 min, expect 388 passed)
+python -m pytest                        (all automated tests, ~4 min, expect 389 passed)
 python score_testset.py rehearsal_set
 python score_testset.py hard_set
 python score_testset.py real_photos

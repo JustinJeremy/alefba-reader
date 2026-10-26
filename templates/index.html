@@ -125,6 +125,9 @@
     <nav id="session" aria-label="This session" hidden>
       <span class="eyebrow">This session</span>
       <div id="sessionList"></div>
+      <button id="clearSession" class="chip-x" type="button" aria-label="Clear this session" title="Clear this session">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </nav>
 
     <div class="stage-head">
@@ -199,7 +202,11 @@
         <p><b>Not sure:</b> this photo may not show a Persian letter.
           Retake it closer, with one letter filling most of the photo.</p>
       </div>
-      <p id="alts"></p>
+      <!-- the other letters it might be: folded, so only one answer shows unless asked for -->
+      <details id="altsBox" hidden>
+        <summary><span>Other possible letters</span><span class="toggle"></span></summary>
+        <p id="alts"></p>
+      </details>
       <section id="forms" aria-labelledby="formsTitle">
         <h2 id="formsTitle"></h2>
         <div id="formsList" dir="rtl"></div>

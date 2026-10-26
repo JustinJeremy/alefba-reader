@@ -624,6 +624,20 @@ button.clear-answer:hover { border-color: var(--saffron); }
 
 #sessionList { display: flex; flex-wrap: wrap; gap: 8px; }
 
+button.chip-x {                 /* x: clear this session */
+  width: 40px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border-color: var(--line);
+  background: var(--card);
+  color: var(--muted);
+}
+
+button.chip-x svg { width: 14px; height: 14px; stroke-width: 2.6; }
+button.chip-x:hover { border-color: var(--bad); color: var(--bad); }
+
 #sessionList .chip {
   min-height: 40px;
   padding: 0 14px;
@@ -789,7 +803,23 @@ button.copy:hover { border-color: var(--saffron); }
 #result.unsure .letter-tile { border-style: dashed; opacity: .75; }
 #result.unsure #latin { color: var(--muted); }
 
-#alts {                         /* "Also possible: ف fe · 2%" */
+#altsBox {                      /* "Other possible letters" (folded): ف fe · 2% */
+  justify-self: center;
+  width: auto;
+  text-align: center;
+}
+
+#altsBox summary {
+  justify-content: center;
+  min-height: 40px;
+  font: 600 .95rem var(--text);
+  color: var(--muted);
+}
+
+#altsBox .toggle::after { content: "▾"; color: var(--brown); }
+#altsBox[open] .toggle::after { content: "▴"; }
+
+#alts {
   margin: 0;
   text-align: center;
   color: var(--muted);
@@ -1183,7 +1213,7 @@ dialog#chart::backdrop { background: rgba(42, 28, 19, .55); }
 @keyframes pop { 0% { opacity: 0; transform: scale(.85); } 70% { transform: scale(1.03); } }   /* (so "Not sure" stays dimmed) */
 @keyframes fade { from { opacity: 0; } }
 
-#placeholder, #reading, #refused, #word, #howread, #session, #forms, #unsure, #alts { animation: rise .35s ease both; }
+#placeholder, #reading, #refused, #word, #howread, #session, #forms, #unsure, #altsBox { animation: rise .35s ease both; }
 #result .letter-tile { animation: pop .45s ease both; }
 #result .details { animation: rise .4s .08s ease both; }
 #result .talk { animation: rise .4s .16s ease both; }

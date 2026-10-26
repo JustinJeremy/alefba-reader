@@ -469,7 +469,9 @@ function showAnswer(d) {
                                 : "That's " + t.name + "! I'm " + pct + "% sure.";
 
   const also = rest.filter(x => x.confidence >= 0.01);    // 0% guesses are noise
-  $("alts").replaceChildren(...(also.length ? ["Also possible: "] : []), ...also.flatMap((x, n) => {
+  $("altsBox").hidden = !also.length;                     // folded until opened (the answer is the top letter)
+  $("altsBox").open = false;
+  $("alts").replaceChildren(...also.flatMap((x, n) => {
     const fa = document.createElement("b");
     fa.lang = "fa";
     fa.textContent = x.letter;
@@ -619,6 +621,13 @@ function remember(file, answer) {
   drawSession();
 }
 
+// x beside the session strip: forget this session's answers (the answer on screen stays)
+$("clearSession").onclick = () => {
+  history.length = 0;
+  shown = -1;
+  drawSession();
+};
+
 function drawSession() {
   $("session").hidden = history.length < 2;          // a strip of one would only repeat the answer
   $("sessionList").replaceChildren(...history.map((h, n) => {
@@ -702,6 +711,7 @@ function showChartLetter(l) {
   mood($("resultMascot"), "idle");
   $("bubble").textContent = "This is " + l.name + ", letter " + (l.id + 1) + " of 32.";
   $("alts").replaceChildren();
+  $("altsBox").hidden = true;
   $("how").replaceChildren();
   showOnly("result");
   $("answerLabel").textContent = "From the alphabet chart";
