@@ -105,10 +105,13 @@ straightened along its lines first; a second model, trained on turned letters, i
 model is unsure. Upside down stays hardest: turned around, some letters *are* other letters
 (پ and ث, ب and ن). Mirrored letters are not read.
 
-## Online copy (prepared, not deployed)
+## Online copy
 
-`render.yaml`, `requirements-server.txt` and `numpy_cnn.py` let the app run on Render's free plan,
-without PyTorch and with saving turned off. Steps: [`info/guide.md`](info/guide.md), section 6.
+Try it at <https://alefba-reader.onrender.com> (Render's free plan: the first visit after 15 minutes
+without visitors takes about a minute, and each photo takes a few seconds).
+
+`render.yaml`, `requirements-server.txt` and `numpy_cnn.py` run the app there without PyTorch and with
+saving turned off. Every merge to `main` updates the website by itself. Setup: [`info/guide.md`](info/guide.md), section 6.
 
 ## Testing
 
