@@ -391,7 +391,8 @@ refuses to save, so visitors cannot write files onto it. On the laptop nothing c
 2. On render.com: *New → Blueprint*, connect GitHub, pick `JustinJeremy/alefba-reader`, then *Apply*.
    (Or *New → Web Service* by hand: runtime *Python*, build `pip install -r requirements-server.txt`,
    start `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120`,
-   plan *Free*, and an environment variable `ALEFBA_PUBLIC` = `1`.)
+   plan *Free*, and the environment variables `ALEFBA_PUBLIC`, `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`
+   and `OPENCV_FOR_THREADS_NUM`, each = `1`.)
 3. Wait for *Live* (about 3-5 min), then open the `https://alefba-reader....onrender.com` address it shows.
 4. Put that address in *Website* in the GitHub repo's About.
 
@@ -399,7 +400,8 @@ After that, every merge on GitHub updates the website by itself.
 
 *Good to know*
 - The free plan sleeps after 15 min without visitors; the first visit after that takes about a minute.
-- It has a small share of one processor (0.1 CPU): expect a few seconds per photo, more for whole sheets.
+- It has a small share of one processor (0.1 CPU): expect a few seconds per photo, more for whole sheets
+  and for busy photos that end up refused (every piece is checked as a possible letter).
 - The live camera works on phones there too (the site is https).
 
 *After retraining*, `train.py` also rewrites `persian_cnn.npz`; commit it together with `persian_cnn.pt`
