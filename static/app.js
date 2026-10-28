@@ -120,7 +120,13 @@ function setFile(f) {
   clear.className = "clear-photo";
   clear.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>New photo';
   clear.onclick = e => { e.stopPropagation(); newPhoto(); };
-  stage.append(img, box, clear);
+  const turn = document.createElement("button");           // "Turn": a quarter turn clockwise
+  turn.type = "button";
+  turn.className = "turn-photo";
+  turn.title = "Turn the photo a quarter turn (for a sideways or upside-down letter)";
+  turn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>Turn';
+  turn.onclick = e => { e.stopPropagation(); turnPhoto(img); };
+  stage.append(img, box, clear, turn);
 
   $("drop").replaceChildren(stage);
   $("drop").classList.add("has-photo");
@@ -129,6 +135,26 @@ function setFile(f) {
   clearSel();
   $("selrow").hidden = false;
   $("go").disabled = false;
+}
+
+// The photo turned a quarter turn clockwise, as a new photo; if it had been read, it is read again
+// (the app straightens tilted ruled paper itself, but a sideways or upside-down letter on plain paper
+// can need a hand)
+function turnPhoto(img) {
+  if (busy || !img.naturalWidth) return;
+  const wasRead = shown >= 0 && history[shown] && history[shown].file === current;
+  const c = document.createElement("canvas");
+  c.width = img.naturalHeight;
+  c.height = img.naturalWidth;
+  const g = c.getContext("2d");
+  g.translate(c.width, 0);
+  g.rotate(Math.PI / 2);
+  g.drawImage(img, 0, 0);
+  const name = (current && current.name ? current.name.replace(/\.[^.]*$/, "") : "photo") + "_turned.jpg";
+  c.toBlob(b => {
+    setFile(new File([b], name, { type: "image/jpeg" }));
+    if (wasRead) $("go").click();
+  }, "image/jpeg", 0.95);
 }
 
 // Draw the photo as big as the panel allows (small photos and screenshots are enlarged), keeping its

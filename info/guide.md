@@ -104,7 +104,7 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 384/384 |
 | BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 277/296 (93.6%); whole picture cards 17/28 (was 4/28) |
-| Automated tests | 402, no known misses |
+| Automated tests | 411, no known misses |
 
 *Turned letters* (batch 16): tilted and sideways letters are read too. On `turned_set` (the test
 photos turned to 15-345°, made with `python make_turned_set.py`): 440 -> 811 of 1,390 right (825 after batch 17), with
@@ -132,6 +132,17 @@ surer answer wins. Upside down stays hardest, because turned around some letters
 - Tried and not kept: reading level ruled pages upside down too (it read upright lam as mim), and a
   retrained tilt model that also saw turned photos with their ruled lines (1,059 turned, but four
   upright photos lost; with guards that kept them, only 1,028).
+
+*Batch 21* (more turned letters, and a Turn button): 1,043 -> 1,066 of 1,390, every upright score unchanged.
+- Angle search (`read_photo`, `_search_angles` in `predict.py`): a one-letter photo without ruling that
+  is read less than 90% sure (`SEARCH_BELOW`) or refused is also read turned to `SEARCH_ANGLES`; the
+  surest reading is used when at least 95% sure (`SEARCH_SURE`) and surer by 0.15 (`SEARCH_BETTER`).
+  Looser settings (97% / 90% / 0.1) gained only 2 more photos, so the stricter ones were kept.
+- Ruling past a dark desk (`ruling_angle` in `common.py`): the dark area past the page edge gives the
+  strongest straight edges, at right angles to the ruling, so the 2 strongest directions are tried
+  (`TILT_TRIES`; 3 gave nothing more and found a "tilt" in more upright photos).
+- *Turn* on the photo (`turnPhoto` in `static/app.js`): a quarter turn clockwise, and read again if the
+  photo had been read. It sits at the photo's bottom left, as a box is usually dragged from the top left.
 
 ---
 
@@ -204,7 +215,7 @@ reading order.
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `402 passed`.
+Expected result: `411 passed`.
 
 ### Score the test sets
 

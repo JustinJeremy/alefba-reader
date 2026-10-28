@@ -508,6 +508,7 @@ TILT_SPREAD = 2.0   # the lines agree on their angle within this (degrees)
 TILT_ONE_SPAN = 0.85  # one line is enough when it runs across this much of the photo, edge to edge (ruling
                       # does; a letter's stroke has paper round it), and is turned less than TILT_ONE_MAX
 TILT_ONE_MAX = 50     # from level (an upright stroke, like alef, is near 90)
+TILT_TRIES = 2        # the strongest directions of long lines tried as ruling, strongest first
 
 
 def _span(segs, angle, w, h):
@@ -544,12 +545,11 @@ def ruling_angle(img_bgr):
     ang = np.degrees(np.arctan2(-(segs[:, 3] - segs[:, 1]), segs[:, 2] - segs[:, 0]))   # image y points down
     ang = (ang + 90) % 180 - 90                                                         # -90..90
     length = np.hypot(segs[:, 2] - segs[:, 0], segs[:, 3] - segs[:, 1])
-    best, best_len = None, 0
-    for a in ang:                                     # the angle most of the long line length agrees on
-        d = np.abs((ang - a + 90) % 180 - 90)
-        tot = length[d <= TILT_SPREAD].sum()
-        if tot > best_len:
-            best, best_len = a, tot
+    totals = [length[np.abs((ang - a + 90) % 180 - 90) <= TILT_SPREAD].sum() for a in ang]
+    candidates = []                                   # directions, most of the long line length first
+    for i in np.argsort(totals)[::-1]:
+        if all(np.abs((ang[i] - c + 90) % 180 - 90) > TILT_SPREAD for c in candidates):
+            candidates.append(ang[i])
     def separate_lines(at):
         """How many separate lines (not pieces of one line) run at this angle."""
         near = np.abs((ang - at + 90) % 180 - 90) <= TILT_SPREAD
@@ -560,11 +560,14 @@ def ruling_angle(img_bgr):
 
     if separate_lines(0)[0] >= TILT_LINES:            # level ruling is there: the paper is straight already
         return 0.0                                    # (a long upright stroke, like lam, is not ruling)
-    lines, near = separate_lines(best)
-    if lines < TILT_LINES and not (lines == 1 and abs(best) <= TILT_ONE_MAX and
+    # the strongest direction is not always the ruling: a dark desk past the page edge gives many long
+    # edges together (one thick line, at right angles to the ruling), so the next ones are tried too
+    for best in candidates[:TILT_TRIES]:
+        lines, near = separate_lines(best)
+        if lines >= TILT_LINES or (lines == 1 and abs(best) <= TILT_ONE_MAX and
                                    _span(segs[near], best, w, h) >= TILT_ONE_SPAN):
-        return None
-    return float(np.average(ang[near], weights=length[near]) if np.ptp(ang[near]) < 90 else best)
+            return float(np.average(ang[near], weights=length[near]) if np.ptp(ang[near]) < 90 else best)
+    return None
 
 
 def _ignore_margin(gray):

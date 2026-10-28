@@ -10,7 +10,7 @@ import marks
 from numpy_cnn import NumpyCNN, softmax, normalize
 from segment import find_letters
 from common import (PersianCNN, preprocess, caption_suspect, load_image, _binary, _prepare_bw, _grain,
-                    _flatten_lighting, colourful, ruled_lines, ruled_tilt, SIZE,
+                    _flatten_lighting, colourful, ruled_lines, ruled_tilt, ruling_angle, SIZE,
                     LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, NOT_A_LETTER)
 
 # next to this file, so the app works no matter which folder it is started from
@@ -204,9 +204,57 @@ PAD_EDGE = 0.07     # only for a tight crop: the letter comes this close (x the 
 PAD_SIDES = 3       # on at least this many sides (a normal photo with space round the letter is never padded)
 PAD_SURE = 0.9      # and the reading with the border is used only when at least this sure (a picture card
                     # cut close round its picture was re-read wrongly at 71%)
+SEARCH_BELOW = 0.9  # a one-letter photo without ruling read less surely than this (or refused) is also read
+                    # turned to each of SEARCH_ANGLES: with no lines to show the tilt, the letter itself must
+SEARCH_ANGLES = (90, 270, 180, 45, 315, 135, 225, 30, 330)
+SEARCH_SURE = 0.95  # a turned reading is used only when at least this sure,
+SEARCH_BETTER = 0.15  # and surer than the reading as it is by this much
+SEARCH_HOW = " (read turned by {}°)"
 
 
 def read_photo(img, topk=3, select=None):
+    """Read every letter in a photo (see _read_padded). A photo of one letter on plain paper (no ruling
+    to straighten it by) that is read unsurely or refused is also read turned to other angles; a clearly
+    surer one-letter reading wins."""
+    try:
+        first, err = _read_padded(img, topk, select), None
+    except ValueError as e:
+        first, err = None, e
+    sure = lambda r: min(x[0][1] for x, _ in r[0])
+    if (select is None and SEARCH_BELOW and img is not None and img.size and
+            (first is None or (len(first[0]) == 1 and sure(first) < SEARCH_BELOW))
+            and not colourful(img) and ruling_angle(img) is None):
+        found = _search_angles(img, topk, first)
+        if found:
+            return found
+    if err:
+        raise err
+    return first
+
+
+def _search_angles(img, topk, first):
+    """The surest one-letter reading of img turned to SEARCH_ANGLES (main model), when sure enough and
+    clearly surer than first; else None."""
+    best = None
+    with _using("main"):
+        for a in SEARCH_ANGLES:
+            lv, bk = _level(img, a)
+            try:
+                got, how = _read_upright(lv, topk, None)
+            except ValueError:
+                continue
+            if len(got) == 1 and (best is None or got[0][0][0][1] > best[0][0][0][0][1]):
+                best = got, how, bk, a
+    if best is None:
+        return None
+    got, how, bk, a = best
+    s = got[0][0][0][1]
+    if s < SEARCH_SURE or (first and s < min(x[0][1] for x, _ in first[0]) + SEARCH_BETTER):
+        return None
+    return [(res, (view, _box_back(box, bk, img.shape))) for res, (view, box) in got], how + SEARCH_HOW.format(a)
+
+
+def _read_padded(img, topk=3, select=None):
     """Read every letter in a photo (see _read_two_models). A letter cropped tightly (no white space round
     it, as a cropped screenshot often is) touches the photo's edges, and the clean-up removes shapes
     along the edges (desk, shadow, frame). So a photo read unsurely or refused is also read with a
