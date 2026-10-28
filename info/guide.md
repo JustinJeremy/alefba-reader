@@ -104,15 +104,34 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 384/384 |
 | BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 277/296 (93.6%); whole picture cards 17/28 (was 4/28) |
-| Automated tests | 389, no known misses |
+| Automated tests | 402, no known misses |
 
 *Turned letters* (batch 16): tilted and sideways letters are read too. On `turned_set` (the test
-photos turned to 15-345°, made with `python make_turned_set.py`): 440 -> 811 of 1,390 right, with
+photos turned to 15-345°, made with `python make_turned_set.py`): 440 -> 811 of 1,390 right (825 after batch 17), with
 every upright score unchanged. How: ruled paper photographed at a tilt is first straightened along its
 lines (`ruled_tilt` in `common.py`); and when the main model is unsure (under 97%) or refuses a photo
 of one letter, a second model trained on turned letters (`persian_cnn_tilt.pt`) reads it too, and the
 surer answer wins. Upside down stays hardest, because turned around some letters *are* other letters
 (پ and ث, ب and ن). Mirrored letters are not read.
+
+*Batch 20* (fair test photos, cleaner straightening): 832 -> 1,043 of 1,390 on the fair `turned_set`
+(825 -> 965 on the old cropped one), every upright score unchanged.
+- The test set: `make_turned_set.py` used to crop each turned photo to the largest rectangle without
+  empty corners, which at a slant cut off parts of many letters (te's tail, se's dots): even turned back
+  exactly, only 41% of the 30-degree photos could be read. Now `turn_whole` extends the paper and its
+  ruled lines past the photo first, then turns it, so the whole letter is kept.
+  `python make_turned_set.py --cropped` still makes the old set.
+- Turning back (`_level`, `_fill_rows` in `predict.py`): the new corners were filled by smearing the
+  photo's edges outward, which drew the ruled lines on as slanted streaks that the line removal missed.
+  They are now filled along each row, so the level lines carry on straight.
+- Both ways up: ruled lines show how far a page is turned, not which way up it is (sideways lines look
+  the same either way round), so it is read turned back both ways. On a page turned less than 60
+  degrees the upside-down reading must be surer by 0.1 (`FLIP_UNDER`, `FLIP_BETTER`).
+- One line is enough (`TILT_ONE_SPAN`, `TILT_ONE_MAX` in `common.py`): a single ruled line running
+  across 85% of the photo, edge to edge, turned less than 50 degrees, is ruling.
+- Tried and not kept: reading level ruled pages upside down too (it read upright lam as mim), and a
+  retrained tilt model that also saw turned photos with their ruled lines (1,059 turned, but four
+  upright photos lost; with guards that kept them, only 1,028).
 
 ---
 
@@ -185,7 +204,7 @@ reading order.
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `389 passed`.
+Expected result: `402 passed`.
 
 ### Score the test sets
 

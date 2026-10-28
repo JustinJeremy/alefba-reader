@@ -71,9 +71,10 @@ python predict.py photo.jpg --min-conf 0.8   (warn below 80% instead of 60%)
 2. *Marks* (`marks.py`): finds the circled / highlighted / arrowed letter on a whole sheet.
 3. *Several letters* (`segment.py`): splits a photo into separate letters (body + dots).
 4. *Model* (`common.py`, PyTorch CNN, ~774k parameters): 33 answers, the 32 letters plus "not a letter".
-5. *Turned letters* (`predict.py`): ruled paper photographed at a tilt is straightened along its lines;
-   a second model trained on turned letters (`persian_cnn_tilt.pt`) also reads one-letter photos the
-   main model is unsure of, and the surer answer wins.
+5. *Turned letters* (`predict.py`): ruled paper photographed at a tilt is straightened along its lines
+   (read both ways up, since the lines do not show which way is up); a second model trained on turned
+   letters (`persian_cnn_tilt.pt`) also reads one-letter photos the main model is unsure of, and the
+   surer answer wins.
 6. *Tight crops* (`predict.py`): a letter cropped with no white space round it (it touches the photo's
    edges) is also read with a border of its own paper colour, when the first reading is unsure.
 7. *Refusals* (`predict.py`): photos that are not a Persian letter get "No Persian letter found".
@@ -95,15 +96,25 @@ Full numbers in [`results/metrics.txt`](results/metrics.txt).
 | Hard set (`hard_set`) | 384/384 |
 | Rehearsal and marked sheets | 100% |
 | BUS testing dataset (`bus_test_set`) | 277/296 (93.6%) |
-| Turned letters, 15–345° (`turned_set`) | 825/1390 (59%), was 440 before batch 16 |
+| Turned letters, 15–345° (`turned_set`) | 1043/1390 (75%), was 832 before batch 20 |
 | Tightly cropped letters, no white space (`tight_set/00`) | 133/139 (95.7%), was 128 before batch 17 |
 | Speed | ~3 ms per image (model only); ~0.1–0.3 s per photo in the app |
 
-Tilted and sideways letters are read too (batch 16): photos of turned letters (15–345°) went from
-440 to 811 of 1,390 right, with every upright score unchanged. Ruled paper photographed at a tilt is
-straightened along its lines first; a second model, trained on turned letters, is asked when the main
-model is unsure. Upside down stays hardest: turned around, some letters *are* other letters
-(پ and ث, ب and ن). Mirrored letters are not read.
+Tilted and sideways letters are read too, always with every upright score unchanged. Ruled paper
+photographed at a tilt is straightened along its lines first (batch 16), and a second model, trained on
+turned letters, is asked when the main model is unsure. Batch 20 fixed the straightening: turning a
+photo back smeared its edges into slanted streaks, a page is now read both ways up, and one ruled line
+running edge to edge is enough. It also made `turned_set` fair: each turned photo keeps all of its
+letter (before, cropping the corners cut parts of letters off at a slant). On the old cropped set the
+same photos went from 825 to 965 right; on the fair set from 832 to 1,043.
+
+| Angle | 15° | 30° | 45° | 90° | 135° | 180° | 270° | 315° | 330° | 345° |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Right (of 139) | 115 | 109 | 103 | 105 | 92 | 87 | 104 | 107 | 109 | 112 |
+
+Upside down stays hardest: turned around, some letters *are* other letters (پ and ث, ب and ن, ل and م),
+so a level page is not read upside down as well (it misread upright lam as mim). Mirrored letters are
+not read.
 
 ## Online copy
 
@@ -116,7 +127,7 @@ saving turned off. Every merge to `main` updates the website by itself. Setup: [
 ## Testing
 
 ```
-python -m pytest                        (all automated tests, ~4 min, expect 389 passed)
+python -m pytest                        (all automated tests, ~4 min, expect 402 passed)
 python score_testset.py rehearsal_set
 python score_testset.py hard_set
 python score_testset.py real_photos
@@ -137,7 +148,7 @@ Test sets are *test only*: never train on them.
 | `hard_set/`, `rehearsal_set/` | Harder and demo-style photos |
 | `bus_test_set/` | Arabic, pastel, coloured and cartoon letters |
 | `no_letter_set/` | Photos that must be refused (checked by `tests/test_no_letter.py`) |
-| `turned_set/` | The one-letter test photos turned to 10 angles (made by `make_turned_set.py`, not in git) |
+| `turned_set/` | The one-letter test photos turned to 10 angles, the whole photo kept (made by `make_turned_set.py`, not in git) |
 | `tight_set/` | The same photos cropped tightly round the letter: 0, 2 and 5% margin (`make_tight_set.py`, not in git) |
 
 ## Retraining (optional)

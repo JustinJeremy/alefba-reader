@@ -505,6 +505,17 @@ def ruled_lines(img_bgr):
 TILT_MIN = 10       # ruled paper tilted less than this (degrees) is read as it is: the line removal copes
 TILT_LINES = 2      # at least this many long parallel lines (the ruling), so one straight stroke is not enough
 TILT_SPREAD = 2.0   # the lines agree on their angle within this (degrees)
+TILT_ONE_SPAN = 0.85  # one line is enough when it runs across this much of the photo, edge to edge (ruling
+                      # does; a letter's stroke has paper round it), and is turned less than TILT_ONE_MAX
+TILT_ONE_MAX = 50     # from level (an upright stroke, like alef, is near 90)
+
+
+def _span(segs, angle, w, h):
+    """How much of the photo's width along angle the segments cover together (0..1)."""
+    dx, dy = np.cos(np.radians(angle)), -np.sin(np.radians(angle))
+    along = np.concatenate([segs[:, 0] * dx + segs[:, 1] * dy, segs[:, 2] * dx + segs[:, 3] * dy])
+    across = min(w / max(abs(dx), 1e-6), h / max(abs(dy), 1e-6))        # the photo's width along that line
+    return (along.max() - along.min()) / across
 
 
 def ruled_tilt(img_bgr):
@@ -512,6 +523,12 @@ def ruled_tilt(img_bgr):
     TILT_MIN, else None. Long straight lines, nearly parallel, spread over the photo: notebook ruling.
     Turning the photo back by this angle makes the lines level, and the letter upright again
     (on ruled paper the lines show which way is up, apart from upside down)."""
+    a = ruling_angle(img_bgr)
+    return a if a is not None and abs(a) >= TILT_MIN else None
+
+
+def ruling_angle(img_bgr):
+    """Angle of the ruled lines (0.0 for level ruling), or None when the photo shows no ruling."""
     if img_bgr is None or img_bgr.size == 0:
         return None
     gray = img_bgr if img_bgr.ndim == 2 else cv2.cvtColor(img_bgr[:, :, :3], cv2.COLOR_BGR2GRAY)
@@ -542,12 +559,12 @@ def ruled_tilt(img_bgr):
         return (1 + int((np.diff(offsets) > 0.04 * min(h, w)).sum()) if len(offsets) else 0), near
 
     if separate_lines(0)[0] >= TILT_LINES:            # level ruling is there: the paper is straight already
-        return None                                   # (a long upright stroke, like lam, is not ruling)
+        return 0.0                                    # (a long upright stroke, like lam, is not ruling)
     lines, near = separate_lines(best)
-    if lines < TILT_LINES:
+    if lines < TILT_LINES and not (lines == 1 and abs(best) <= TILT_ONE_MAX and
+                                   _span(segs[near], best, w, h) >= TILT_ONE_SPAN):
         return None
-    a = float(np.average(ang[near], weights=length[near]) if np.ptp(ang[near]) < 90 else best)
-    return a if abs(a) >= TILT_MIN else None
+    return float(np.average(ang[near], weights=length[near]) if np.ptp(ang[near]) < 90 else best)
 
 
 def _ignore_margin(gray):

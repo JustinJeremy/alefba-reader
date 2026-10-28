@@ -193,6 +193,8 @@ LEVEL_BELOW = 1.01  # tilted ruled paper is always also read straightened (a tur
 LEVEL_SURE = 0.9    # the straightened reading is used only when at least this sure,
 LEVEL_BETTER = 0.0  # and at least as sure as the reading as it is
 LEVEL_HOW = " (straightened along the ruled lines)"
+FLIP_UNDER = 60     # paper turned less than this from level (degrees) is more likely the right way up:
+FLIP_BETTER = 0.1   # read turned back upside down instead only when that is surer by this much
 
 
 PAD_BELOW = 0.9     # a reading less sure than this (or a refusal): also read the photo with a border added
@@ -315,14 +317,23 @@ def _read_level(img, topk=3, select=None):
         if err:
             raise err
         return first
-    level, back = _level(img, tilt)
-    try:
-        letters, how = _read_upright(level, topk, None)
-    except ValueError:
+    # the lines show how far the paper is turned, not which way up it is (sideways lines are the same either
+    # way round): it is read turned back both ways, and the surer reading wins
+    letters = None
+    for a in (tilt, tilt + 180):
+        lv, bk = _level(img, a)
+        try:
+            got, h = _read_upright(lv, topk, None)
+        except ValueError:
+            continue
+        s = min(r[0][1] for r, _ in got)
+        rank = s - (FLIP_BETTER if a != tilt and abs(tilt) < FLIP_UNDER else 0)
+        if letters is None or rank > best:
+            letters, how, back, sure, best = got, h, bk, s, rank
+    if letters is None:
         if err:
             raise err
         return first
-    sure = min(r[0][1] for r, _ in letters)
     if sure < LEVEL_SURE or (first and sure < min(r[0][1] for r, _ in first[0]) + LEVEL_BETTER):
         if err:
             raise err
@@ -340,7 +351,28 @@ def _level(img, angle):
     m[0, 2] += nw / 2 - w / 2
     m[1, 2] += nh / 2 - h / 2
     level = cv2.warpAffine(img, m, (nw, nh), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-    return level, cv2.invertAffineTransform(m)
+    return _fill_rows(level, cv2.warpAffine(np.ones((h, w), np.uint8), m, (nw, nh), flags=cv2.INTER_NEAREST)), \
+        cv2.invertAffineTransform(m)
+
+
+def _fill_rows(level, inside):
+    """The empty corners of a levelled photo filled along each row from the photo's own pixels, so the
+    now level ruled lines carry on straight to the edges (and paper stays paper). Smearing the edges
+    outward (BORDER_REPLICATE) drew the lines on as slanted streaks, and the line removal missed them:
+    at 30 degrees only 61% of the test photos were read right even when turned back exactly."""
+    inside = cv2.erode(inside, np.ones((3, 3), np.uint8), iterations=2) > 0     # skip the blended edge
+    rows = np.where(inside.any(1))[0]
+    if len(rows) == 0:
+        return level
+    out = level.copy()
+    first = np.where(inside.any(1), inside.argmax(1), 0)
+    last = np.where(inside.any(1), level.shape[1] - 1 - inside[:, ::-1].argmax(1), 0)
+    for y in rows:
+        out[y, :first[y]] = level[y, first[y]]
+        out[y, last[y] + 1:] = level[y, last[y]]
+    out[:rows[0]] = out[rows[0]]                          # above and below the photo: its first / last row
+    out[rows[-1] + 1:] = out[rows[-1]]
+    return out
 
 
 def _box_back(box, back, shape):
