@@ -88,6 +88,14 @@
         <button id="clearSel" class="link" type="button" hidden>Clear selection</button>
       </div>
 
+      <div class="row" id="straightRow" hidden>
+        <label for="straight">Straighten</label>
+        <input id="straight" type="range" min="-45" max="45" step="1" value="0">
+        <output id="straightVal" for="straight">0°</output>
+        <button id="straightReset" class="link" type="button" hidden>Reset</button>
+        <button id="straightDone" class="link" type="button">Done</button>
+      </div>
+
       <div class="buttons">
         <button id="camBtn" class="light" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>
@@ -109,7 +117,7 @@
       <p class="keys"><kbd>Enter</kbd> reads the photo · <kbd>Ctrl + V</kbd> pastes one</p>
 
       <div id="err" role="alert"></div>
-      <p class="note">Upright reads best. Tilted and sideways letters work too; upside down, some letters look like others (پ and ث), so press <b>Turn</b> on the photo until the letter is upright. Mirrored letters are not read.</p>
+      <p class="note">Upright reads best. Tilted and sideways letters work too; upside down, some letters look like others (پ and ث), so turn the photo with the buttons on it until the letter is upright. Mirrored letters are not read.</p>
 
       <button id="chartBtn" class="gold-outline" type="button">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>

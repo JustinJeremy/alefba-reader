@@ -234,12 +234,16 @@ def test_other_guesses_are_folded_and_the_session_can_be_cleared(client):
     assert 'id="clearSession"' in html and 'aria-label="Clear this session"' in html
 
 
-def test_photo_can_be_turned_a_quarter_turn():
+def test_photo_can_be_turned_both_ways_and_straightened():
     js = open(os.path.join(ROOT, "static", "app.js"), encoding="utf-8").read()
-    assert "function turnPhoto" in js and 'className = "turn-photo"' in js
+    for part in ("function turnPhoto", '"Turn left"', '"Turn right"', '"Straighten"', "function redraw",
+                 "function paperColour"):
+        assert part in js, part
     css = open(os.path.join(ROOT, "static", "style.css"), encoding="utf-8").read()
-    assert ".turn-photo {" in css
-    assert "<b>Turn</b>" in client_page()
+    assert ".turns {" in css and "position: absolute;" in css.split(".turns {")[1].split("}")[0]
+    html = client_page()
+    assert 'id="straightRow" hidden' in html                     # the slider only shows when asked for
+    assert 'type="range" min="-45" max="45"' in html and 'id="straightDone"' in html
 
 
 def client_page():

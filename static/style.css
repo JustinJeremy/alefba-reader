@@ -340,21 +340,43 @@ h1, h2 { font-family: var(--heading); margin: 0; }
 .clear-photo svg { width: 14px; height: 14px; stroke-width: 2.6; }
 .clear-photo:hover { background: #2a1c13; }
 
-.turn-photo {                   /* "Turn" low on the photo (a box is usually dragged from the top left) */
-  position: absolute;
+.turns {                        /* turn left, turn right, straighten: low on the photo */
+  position: absolute;           /* (a box is usually dragged from the top left) */
   bottom: 8px;
   left: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.turn-photo {                   /* small round icons, styled like "x New photo" */
+  width: 36px;
+  height: 36px;
   min-height: 36px;
-  padding: 0 12px;
+  padding: 0;
   border-radius: 99px;
   background: rgba(42, 28, 19, .82);
   color: #fff7ec;
-  font-size: .88rem;
-  line-height: 1;
 }
 
-.turn-photo svg { width: 15px; height: 15px; stroke-width: 2.4; }
+.turn-photo svg { width: 17px; height: 17px; stroke-width: 2.4; }
 .turn-photo:hover { background: #2a1c13; }
+
+#stage img { transition: transform .12s ease-out; }   /* the straighten slider's preview */
+
+#straightRow {                  /* in place of the tip under the photo, while open: */
+  display: flex;                /* "Straighten +20°  Reset  Done", the slider under it */
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  min-width: 0;
+  font-size: .88rem;
+  color: var(--side-soft);
+}
+
+#straightRow[hidden] { display: none; }
+#straightRow label { color: var(--side-ink); font-weight: 600; }
+#straightVal { margin-right: auto; font-variant-numeric: tabular-nums; }
+#straight { order: 9; flex: 1 1 100%; width: 100%; min-width: 0; margin: 4px 0 0; accent-color: var(--gold); }
 
 #selbox {
   position: absolute;
