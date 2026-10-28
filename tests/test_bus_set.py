@@ -55,10 +55,11 @@ def test_hollow_dots_are_filled():
     assert np.array_equal(_fill_dots(big), big)
 
 
-# fewest right answers per folder (batch 13 results; before batch 11: 28, 26, 11, 15, -, -, 16, 19, 32, 32).
-# cartoon_with_pictures (whole cards): 4/28 until batch 13, when each coloured shape began to be read on its own
+# fewest right answers per folder (batch 21 results; before batch 11: 28, 26, 11, 15, -, -, 16, 19, 32, 32).
+# cartoon_with_pictures (whole cards): 4/28 until batch 13, when each coloured shape began to be read on its own;
+# 17/28 until batch 21, when shapes along dark outline (the picture) were skipped and cut apart
 MIN_RIGHT = {"arabic_print": 28, "arabic_on_disc": 28, "cartoon_white": 26, "cartoon_background": 26,
-             "cartoon_with_pictures": 17, "cartoon_with_pictures_boxed": 24, "pastel_tight": 32, "pastel_tiles": 32,
+             "cartoon_with_pictures": 22, "cartoon_with_pictures_boxed": 24, "pastel_tight": 32, "pastel_tiles": 32,
              "coloured_tiles_tight": 32, "coloured_tiles": 32}
 
 
@@ -91,3 +92,18 @@ def test_dragged_boxes_on_picture_cards_never_crash(path):
             read_photo(img, select=box)
         except ValueError:
             pass                                           # "no letter found" is a fine answer
+
+
+@pytest.mark.parametrize("name", ["05_jim_jeem", "09_dal_dal", "16_sad_sad", "20_eyn_ain", "22_fe_feh"])
+def test_card_letter_wins_over_the_picture(name):
+    # batch 21: the picture (outlined) is not the letter; a clean letter read surely wins over a reading
+    # that took in the picture (the carrot read as two more letters, the bear read as he)
+    letters, how = read_photo(load_image(os.path.join(BUS, "cartoon_with_pictures", name + ".jpg")))
+    assert len(letters) == 1 and letters[0][0][0][0] == int(name[:2]), how
+
+
+@pytest.mark.parametrize("name", ["05_jim_jeem", "25_gaf_gaf"])
+def test_a_pastel_letter_is_not_cut_to_a_piece(name):
+    # a pastel letter read surely stays: its coloured bowl alone (jim as nun, gaf as kaf) must not win
+    letters, _ = read_photo(load_image(os.path.join(BUS, "pastel_tight", name + ".jpg")))
+    assert letters[0][0][0][0] == int(name[:2])

@@ -14,3 +14,5 @@ BackUp*/
 turned_set/
 # test photos cropped tightly round the letter, made again with make_tight_set.py
 tight_set/
+# test photos as a phone might take them, made again with make_phone_set.py
+phone_set/
