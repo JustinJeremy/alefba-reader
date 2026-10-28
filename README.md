@@ -100,7 +100,7 @@ Full numbers in [`results/metrics.txt`](results/metrics.txt).
 | Speed | ~3 ms per image (model only); ~0.1–0.3 s per photo in the app |
 
 Tilted and sideways letters are read too (batch 16): photos of turned letters (15–345°) went from
-440 to 811 of 1,390 right, with every upright score unchanged. Ruled paper photographed at a tilt is
+440 to 811 of 1,390 right (825 after batch 17), with every upright score unchanged. Ruled paper photographed at a tilt is
 straightened along its lines first; a second model, trained on turned letters, is asked when the main
 model is unsure. Upside down stays hardest: turned around, some letters *are* other letters
 (پ and ث, ب and ن). Mirrored letters are not read.

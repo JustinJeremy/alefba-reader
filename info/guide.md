@@ -107,7 +107,7 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Automated tests | 389, no known misses |
 
 *Turned letters* (batch 16): tilted and sideways letters are read too. On `turned_set` (the test
-photos turned to 15-345°, made with `python make_turned_set.py`): 440 -> 811 of 1,390 right, with
+photos turned to 15-345°, made with `python make_turned_set.py`): 440 -> 811 of 1,390 right (825 after batch 17), with
 every upright score unchanged. How: ruled paper photographed at a tilt is first straightened along its
 lines (`ruled_tilt` in `common.py`); and when the main model is unsure (under 97%) or refuses a photo
 of one letter, a second model trained on turned letters (`persian_cnn_tilt.pt`) reads it too, and the
