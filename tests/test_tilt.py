@@ -105,3 +105,28 @@ def test_one_ruled_line_across_the_photo_is_enough(sheet):
     img = turn_whole(load_image(os.path.join(ROOT, "real_photos", sheet)), 30)
     assert abs(ruled_tilt(img) - 30) < 3
     assert predict.read_photo(img)[0][0][0][0][0] == int(os.path.basename(sheet)[:2])
+
+
+@pytest.mark.parametrize("name, angle", [("09_dal.jpg", 90), ("09_dal.jpg", 270), ("09_dal.jpg", 180),
+                                         ("12_ze.jpg", 90)])
+def test_turned_letter_on_plain_paper_is_found_by_turning_it(name, angle):
+    # no ruling and both models unsure: the photo is read turned to other angles, the surest one wins
+    from make_turned_set import turn_whole
+    img = turn_whole(load_image(os.path.join(ROOT, "rehearsal_set", "q95", name)), angle)
+    letters, how = predict.read_photo(img)
+    assert letters[0][0][0][0] == int(name[:2]), how
+
+
+def test_angle_search_leaves_sure_and_ruled_photos_alone():
+    import glob
+    for f in sorted(glob.glob(os.path.join(ROOT, "rehearsal_set", "q95", "*.jpg")))[:12]:
+        assert "read turned" not in predict.read_photo(load_image(f))[1], f
+
+
+@pytest.mark.parametrize("angle", [15, 30, 45])
+def test_ruling_is_found_past_a_dark_desk_edge(angle):
+    # a dark desk past the page edge gives the strongest straight edges (at right angles to the ruling)
+    from make_turned_set import turn_whole
+    img = turn_whole(load_image(os.path.join(ROOT, "real_photos", "Mark", "20_eyn_sheet.jpg")), angle)
+    assert abs(ruled_tilt(img) - angle) < 3
+    assert predict.read_photo(img)[0][0][0][0][0] == 20

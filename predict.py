@@ -10,7 +10,7 @@ import marks
 from numpy_cnn import NumpyCNN, softmax, normalize
 from segment import find_letters
 from common import (PersianCNN, preprocess, caption_suspect, load_image, _binary, _prepare_bw, _grain,
-                    _flatten_lighting, colourful, ruled_lines, ruled_tilt, SIZE,
+                    _flatten_lighting, colourful, ruled_lines, ruled_tilt, ruling_angle, SIZE,
                     LETTERS, LOOKUP, LOOKUP_ASCII, NAMES, NOT_A_LETTER)
 
 # next to this file, so the app works no matter which folder it is started from
@@ -204,9 +204,58 @@ PAD_EDGE = 0.07     # only for a tight crop: the letter comes this close (x the 
 PAD_SIDES = 3       # on at least this many sides (a normal photo with space round the letter is never padded)
 PAD_SURE = 0.9      # and the reading with the border is used only when at least this sure (a picture card
                     # cut close round its picture was re-read wrongly at 71%)
+SEARCH_BELOW = 0.9  # a one-letter photo without ruling read less surely than this (or refused) is also read
+                    # turned to each of SEARCH_ANGLES: with no lines to show the tilt, the letter itself must
+SEARCH_ANGLES = (90, 270, 180, 45, 315, 135, 225, 30, 330)
+SEARCH_SURE = 0.99  # a turned reading is used only when at least this sure (at 0.95 a blurred phone photo
+                    # of sad was read turned, as another letter),
+SEARCH_BETTER = 0.15  # and surer than the reading as it is by this much
+SEARCH_HOW = " (read turned by {}°)"
 
 
 def read_photo(img, topk=3, select=None):
+    """Read every letter in a photo (see _read_padded). A photo of one letter on plain paper (no ruling
+    to straighten it by) that is read unsurely or refused is also read turned to other angles; a clearly
+    surer one-letter reading wins."""
+    try:
+        first, err = _read_padded(img, topk, select), None
+    except ValueError as e:
+        first, err = None, e
+    sure = lambda r: min(x[0][1] for x, _ in r[0])
+    if (select is None and SEARCH_BELOW and img is not None and img.size and
+            (first is None or (len(first[0]) == 1 and sure(first) < SEARCH_BELOW))
+            and not colourful(img) and ruling_angle(img) is None):
+        found = _search_angles(img, topk, first)
+        if found:
+            return found
+    if err:
+        raise err
+    return first
+
+
+def _search_angles(img, topk, first):
+    """The surest one-letter reading of img turned to SEARCH_ANGLES (main model), when sure enough and
+    clearly surer than first; else None."""
+    best = None
+    with _using("main"):
+        for a in SEARCH_ANGLES:
+            lv, bk = _level(img, a)
+            try:
+                got, how = _read_upright(lv, topk, None)
+            except ValueError:
+                continue
+            if len(got) == 1 and (best is None or got[0][0][0][1] > best[0][0][0][0][1]):
+                best = got, how, bk, a
+    if best is None:
+        return None
+    got, how, bk, a = best
+    s = got[0][0][0][1]
+    if s < SEARCH_SURE or (first and s < min(x[0][1] for x, _ in first[0]) + SEARCH_BETTER):
+        return None
+    return [(res, (view, _box_back(box, bk, img.shape))) for res, (view, box) in got], how + SEARCH_HOW.format(a)
+
+
+def _read_padded(img, topk=3, select=None):
     """Read every letter in a photo (see _read_two_models). A letter cropped tightly (no white space round
     it, as a cropped screenshot often is) touches the photo's edges, and the clean-up removes shapes
     along the edges (desk, shadow, frame). So a photo read unsurely or refused is also read with a
@@ -422,12 +471,21 @@ def _read_upright(img, topk=3, select=None):
         if select is None and colourful(img):          # nothing found: maybe a coloured letter beside a picture
             card = _read_picture_card(img, topk)
             if card is not None:
-                return [_moved(card, ox, oy)], CARD_HOW
+                return [_moved(card[:2], ox, oy)], CARD_HOW
         raise
     if select is None and colourful(img):
         card = _read_picture_card(img, topk)
-        if card is not None and min(r[0][1] for r, _ in letters) < CARD_UNSURE                 and _inside_much_smaller(card[1][1], [b for _, (_, b) in letters]):
-            return [_moved(card, ox, oy)], CARD_HOW    # the reading swallowed the picture with the letter
+        boxes = [b for _, (_, b) in letters]
+        if card is not None and ((min(r[0][1] for r, _ in letters) < CARD_UNSURE
+                                  and _inside_much_smaller(card[1][1], boxes))
+                                 or (card[2] and card[0][0][1] >= CARD_CLEAN_SURE and _overlaps(card[1][1], boxes)
+                                     and [r[0][0] for r, _ in letters] != [card[0][0][0]]
+                                     and (len(letters) > 1 or _area(boxes[0]) >= CARD_SWALLOWED * _area(card[1][1])))):
+            # the reading swallowed the picture with the letter; or the card's letter is a clean shape (no
+            # outline, unlike the picture), read surely, where several letters were read (the picture, or
+            # pieces of the letter) or one much bigger (with the picture). When the one letter read is about
+            # the shape's size, the shape is a piece of it (a pastel jim's bowl read as nun): kept
+            return [_moved(card[:2], ox, oy)], CARD_HOW
     return [_moved(l, ox, oy) for l in letters], how
 
 
@@ -450,13 +508,29 @@ def _read_plain(img, topk, select, how):
     return [(res, (view, box))], how
 
 
+def _area(box):
+    return box[2] * box[3]
+
+
+def _overlaps(box, boxes):
+    """Does box overlap any of boxes?"""
+    return any(box[0] < b[0] + b[2] and b[0] < box[0] + box[2] and box[1] < b[1] + b[3] and b[1] < box[1] + box[3]
+               for b in boxes)
+
+
+def _inside(box, boxes):
+    """Does box lie inside what was read (all boxes together)?"""
+    x0 = min(b[0] for b in boxes); y0 = min(b[1] for b in boxes)
+    x1 = max(b[0] + b[2] for b in boxes); y1 = max(b[1] + b[3] for b in boxes)
+    m = 0.1 * max(box[2], box[3])
+    return box[0] >= x0 - m and box[1] >= y0 - m and box[0] + box[2] <= x1 + m and box[1] + box[3] <= y1 + m
+
+
 def _inside_much_smaller(box, boxes):
     """Does box lie inside what was read (all boxes together), and is it much smaller than that?"""
     x0 = min(b[0] for b in boxes); y0 = min(b[1] for b in boxes)
     x1 = max(b[0] + b[2] for b in boxes); y1 = max(b[1] + b[3] for b in boxes)
-    m = 0.1 * max(box[2], box[3])
-    inside = box[0] >= x0 - m and box[1] >= y0 - m and box[0] + box[2] <= x1 + m and box[1] + box[3] <= y1 + m
-    return inside and (x1 - x0) * (y1 - y0) >= CARD_SMALLER * box[2] * box[3]         and max(box[2], box[3]) >= CARD_NOT_SLIVER * max(x1 - x0, y1 - y0)
+    return _inside(box, boxes) and (x1 - x0) * (y1 - y0) >= CARD_SMALLER * box[2] * box[3]         and max(box[2], box[3]) >= CARD_NOT_SLIVER * max(x1 - x0, y1 - y0)
 
 
 CARD_HOW = "the coloured letter next to the picture"
@@ -468,6 +542,13 @@ CARD_SAT = 90       # picture cards: a pixel is strongly coloured above this sat
 CARD_MIN = 0.2      # a letter is at least this big (x the photo's longer side)
 CARD_CONF = 0.7    # the letter must be read at least this surely
 CARD_WORK = 400     # bigger photos are looked at this size (longer side), for speed
+CARD_DARK = 90      # darker than this (HSV value) is a picture's outline or eyes: colour shapes are cut along
+                    # it, so a letter touching a picture of its own colour (red te, red apple) comes apart
+CARD_OUTLINED = 0.5 # a shape with more of its edge than this along dark outline is part of the picture
+CARD_CLEAN = 0.05   # a shape with less than this is clean (a cartoon letter has no outline); a clean letter
+CARD_CLEAN_SURE = 0.97  # read at least this surely wins over a reading of the picture as letters
+CARD_SWALLOWED = 2.5    # (one letter read: only when its box is this much bigger, so it took in the picture;
+                        # a pastel jim's bowl, 2.0x smaller than the jim read, was misread as nun)
 
 
 def _colour_shapes(img):
@@ -476,6 +557,7 @@ def _colour_shapes(img):
     hsv = cv2.cvtColor(np.ascontiguousarray(img[:, :, :3]), cv2.COLOR_BGR2HSV)
     H, W = hsv.shape[:2]
     sat = ((hsv[:, :, 1] > CARD_SAT) & (hsv[:, :, 2] > 60)).astype(np.uint8)
+    dark = cv2.dilate((hsv[:, :, 2] < CARD_DARK).astype(np.uint8), np.ones((3, 3), np.uint8))
     hue = hsv[:, :, 0].astype(int)                 # 0..179 around the colour circle
     ns, slab, sst, _ = cv2.connectedComponentsWithStats(sat, connectivity=8)
     shapes = []
@@ -485,6 +567,7 @@ def _colour_shapes(img):
         if m.sum() < 0.01 * H * W:
             continue
         m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))   # shiny highlights on the letter
+        m &= 1 - dark                                                        # cut along the outlines
         n, lab, st, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
         for i in range(1, n):
             x, y, w, h, a = st[i]
@@ -500,18 +583,23 @@ def _colour_shapes(img):
                 if max(bw, bh) < 0.35 * s and bx >= x - 0.15 * s and bx + bw <= x + w + 0.15 * s                         and by >= y - 0.6 * s and by + bh <= y + h + 0.6 * s:
                     full |= slab == j
             shapes.append(full)
-    return shapes, sat
+    return shapes, dark
 
 
-def _read_picture_card(img, topk, with_mask=False):
-    """A coloured letter next to a picture (a children's alphabet card) -> (top-k, (view, box)) or None.
-    Each shape of one strong colour is drawn black on white and read on its own; the surest letter wins,
-    but only when it is sure (CARD_CONF). read_photo decides whether to use it."""
+def _read_picture_card(img, topk):
+    """A coloured letter next to a picture (a children's alphabet card) -> (top-k, (view, box), clean)
+    or None. Each shape of one strong colour is drawn black on white and read on its own; the surest
+    letter wins, but only when it is sure (CARD_CONF). Shapes along dark outline are the picture and are
+    skipped; clean is whether the winner has no outline at all. read_photo decides whether to use it."""
     k = min(1.0, CARD_WORK / max(img.shape[:2]))
     small = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if k < 1 else img
-    shapes, _ = _colour_shapes(small)
+    shapes, dark = _colour_shapes(small)
     best = None
     for m in shapes:
+        ring = (cv2.dilate(m.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0) & ~m
+        edge = (ring & (cv2.dilate(dark, np.ones((3, 3), np.uint8)) > 0)).sum() / max(ring.sum(), 1)
+        if edge > CARD_OUTLINED:
+            continue
         drawn = np.full(m.shape + (3,), 255, np.uint8)
         drawn[m] = 0
         drawn = cv2.copyMakeBorder(drawn, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=(255, 255, 255))
@@ -522,13 +610,13 @@ def _read_picture_card(img, topk, with_mask=False):
         if res[0][0] == 0:                     # alef is one stroke: any strip of colour looks like it
             continue
         if res[0][1] >= CARD_CONF and (best is None or res[0][1] > best[0][0][1]):
-            best = (res, view, m)
+            best = (res, view, m, edge < CARD_CLEAN)
     if best is None:
         return None
-    res, view, m = best
+    res, view, m, clean = best
     ys, xs = np.nonzero(m)
     box = tuple(int(round(v / k)) for v in (xs.min(), ys.min(), xs.max() - xs.min() + 1, ys.max() - ys.min() + 1))
-    return (res, (view, box), m) if with_mask else (res, (view, box))
+    return res, (view, box), clean
 
 
 def _read_several(img, topk):

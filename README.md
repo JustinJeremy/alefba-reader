@@ -45,6 +45,8 @@ stage where the letter is shown large, next to its spelling and how sure the app
   or drop it anywhere on the page. *Enter* reads it; *✕ New photo* on the photo, or *✕ Clear* beside
   the answer, starts over. Small photos are drawn large so a box can be dragged on them.
 - Drag a box on the photo to read only that part.
+- *Turn* on the photo gives it a quarter turn (and reads it again if it was read): for a sideways or
+  upside-down letter the app is unsure of.
 - On a whole alphabet sheet with no mark, the app asks for one, or you can drag a box around the letter.
 - The answer shows the letter, its spelling (with a *Copy* button), how sure the app is, the other possible
   letters (folded until opened), and how the letter looks inside a word (at the start, in the middle, at the end).
@@ -74,7 +76,8 @@ python predict.py photo.jpg --min-conf 0.8   (warn below 80% instead of 60%)
 5. *Turned letters* (`predict.py`): ruled paper photographed at a tilt is straightened along its lines
    (read both ways up, since the lines do not show which way is up); a second model trained on turned
    letters (`persian_cnn_tilt.pt`) also reads one-letter photos the main model is unsure of, and the
-   surer answer wins.
+   surer answer wins. A letter on plain paper that is still read unsurely is also read turned to other
+   angles, and a clearly surer reading wins.
 6. *Tight crops* (`predict.py`): a letter cropped with no white space round it (it touches the photo's
    edges) is also read with a border of its own paper colour, when the first reading is unsure.
 7. *Refusals* (`predict.py`): photos that are not a Persian letter get "No Persian letter found".
@@ -95,9 +98,10 @@ Full numbers in [`results/metrics.txt`](results/metrics.txt).
 | Photos of several letters (`multi_set`) | 25/25 |
 | Hard set (`hard_set`) | 384/384 |
 | Rehearsal and marked sheets | 100% |
-| BUS testing dataset (`bus_test_set`) | 277/296 (93.6%) |
-| Turned letters, 15–345° (`turned_set`) | 1043/1390 (75%), was 832 before batch 20 |
+| BUS testing dataset (`bus_test_set`) | 282/296 (95.3%); whole picture cards 22/28 |
+| Turned letters, 15–345° (`turned_set`) | 1066/1390 (77%), was 832 before batch 20 |
 | Tightly cropped letters, no white space (`tight_set/00`) | 133/139 (95.7%), was 128 before batch 17 |
+| Phone-style photos (`phone_set`: slanted, blurred, uneven light, compressed) | mild 122/139, strong 89/139; marked sheets 11/21, several letters 19/25 |
 | Speed | ~3 ms per image (model only); ~0.1–0.3 s per photo in the app |
 
 Tilted and sideways letters are read too, always with every upright score unchanged. Ruled paper
@@ -106,15 +110,17 @@ turned letters, is asked when the main model is unsure. Batch 20 fixed the strai
 photo back smeared its edges into slanted streaks, a page is now read both ways up, and one ruled line
 running edge to edge is enough. It also made `turned_set` fair: each turned photo keeps all of its
 letter (before, cropping the corners cut parts of letters off at a slant). On the old cropped set the
-same photos went from 825 to 965 right; on the fair set from 832 to 1,043.
+same photos went from 825 to 965 right; on the fair set from 832 to 1,043. Batch 21 added two more
+steps: a letter on plain paper is also read turned to other angles, and ruling is found past a dark
+desk edge (1,066).
 
 | Angle | 15° | 30° | 45° | 90° | 135° | 180° | 270° | 315° | 330° | 345° |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Right (of 139) | 115 | 109 | 103 | 105 | 92 | 87 | 104 | 107 | 109 | 112 |
+| Right (of 139) | 118 | 112 | 106 | 109 | 95 | 88 | 105 | 109 | 110 | 114 |
 
 Upside down stays hardest: turned around, some letters *are* other letters (پ and ث, ب and ن, ل and م),
-so a level page is not read upside down as well (it misread upright lam as mim). Mirrored letters are
-not read.
+so a level page is not read upside down as well (it misread upright lam as mim); *Turn* on the photo
+is the way round that. Mirrored letters are not read.
 
 ## Online copy
 
@@ -127,7 +133,7 @@ saving turned off. Every merge to `main` updates the website by itself. Setup: [
 ## Testing
 
 ```
-python -m pytest                        (all automated tests, ~4 min, expect 402 passed)
+python -m pytest                        (all automated tests, ~4 min, expect 419 passed)
 python score_testset.py rehearsal_set
 python score_testset.py hard_set
 python score_testset.py real_photos
@@ -136,6 +142,7 @@ python score_testset.py multi_set
 python score_testset.py bus_test_set
 python make_turned_set.py               (then: python score_testset.py turned_set)
 python make_tight_set.py                (then: python score_testset.py tight_set)
+python make_phone_set.py                (then: python score_testset.py phone_set)
 ```
 
 Test sets are *test only*: never train on them.
@@ -150,6 +157,7 @@ Test sets are *test only*: never train on them.
 | `no_letter_set/` | Photos that must be refused (checked by `tests/test_no_letter.py`) |
 | `turned_set/` | The one-letter test photos turned to 10 angles, the whole photo kept (made by `make_turned_set.py`, not in git) |
 | `tight_set/` | The same photos cropped tightly round the letter: 0, 2 and 5% margin (`make_tight_set.py`, not in git) |
+| `phone_set/` | The test photos as a phone might take them: slanted, blurred, unevenly lit, compressed (`make_phone_set.py`, not in git). A stand-in: real phone photos are the real test |
 
 ## Retraining (optional)
 
@@ -181,7 +189,7 @@ Compare the old and new scores before keeping a new model. To undo:
 | `train.py`, `prepare_data.py`, `convert_dataset.py`, `build_profile.py` | Training pipeline |
 | `numpy_cnn.py`, `persian_cnn.npz` | The model run with NumPy only, for the online copy |
 | `persian_cnn_tilt.pt`, `letter_profile_tilt.npz`, `persian_cnn_tilt.npz`, `results_tilt/` | The tilt model (turned letters) |
-| `make_turned_set.py`, `make_tight_set.py` | Make `turned_set/` and `tight_set/`, the turned and tightly cropped test photos |
+| `make_turned_set.py`, `make_tight_set.py`, `make_phone_set.py` | Make `turned_set/`, `tight_set/` and `phone_set/`: turned, tightly cropped and phone-style test photos |
 | `render.yaml`, `requirements-server.txt`, `.python-version` | Settings for putting it online on Render |
 | `score_testset.py` | Scoring a test-set folder |
 | `member_handwriting/` | Team handwriting used for training |

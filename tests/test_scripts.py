@@ -62,3 +62,17 @@ def test_score_testset_reads_labels_from_file_names(tmp_path, capsys):
     assert "05_jim_mislabelled.jpg" in out and "00_alef_blank.png" in out and "ERROR" in out
     assert "skipped 1 file(s)" in out and "IMG_0001.jpg" in out
     assert "TOTAL: 2/4" in out
+
+
+def test_phone_photo_keeps_the_letter_and_is_repeatable():
+    import cv2
+    import make_phone_set
+    from common import load_image
+    img = load_image(os.path.join(ROOT, "rehearsal_set", "q95", "01_be.jpg"))
+    for level in ("mild", "strong"):
+        a = make_phone_set.phone_photo(img, np.random.default_rng(1), level)
+        b = make_phone_set.phone_photo(img, np.random.default_rng(1), level)
+        assert a.ndim == 3 and min(a.shape[:2]) >= 100 and np.array_equal(a, b)    # same seed, same photo
+        ink = (cv2.cvtColor(a, cv2.COLOR_BGR2GRAY) < 100).astype(np.uint8)
+        x, y, w, h = cv2.boundingRect(cv2.findNonZero(ink))
+        assert x > 0 and y > 0 and x + w < a.shape[1] and y + h < a.shape[0]       # the letter is not cut off

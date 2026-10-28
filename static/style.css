@@ -340,6 +340,22 @@ h1, h2 { font-family: var(--heading); margin: 0; }
 .clear-photo svg { width: 14px; height: 14px; stroke-width: 2.6; }
 .clear-photo:hover { background: #2a1c13; }
 
+.turn-photo {                   /* "Turn" low on the photo (a box is usually dragged from the top left) */
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 99px;
+  background: rgba(42, 28, 19, .82);
+  color: #fff7ec;
+  font-size: .88rem;
+  line-height: 1;
+}
+
+.turn-photo svg { width: 15px; height: 15px; stroke-width: 2.4; }
+.turn-photo:hover { background: #2a1c13; }
+
 #selbox {
   position: absolute;
   border: 3px dashed var(--gold);

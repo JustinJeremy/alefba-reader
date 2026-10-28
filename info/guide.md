@@ -104,7 +104,7 @@ romanisation from the instructor's alphabet chart (e.g. غ → `gh`, ق → `q`)
 | Rehearsal, marked sheets | 100% |
 | Hard set (incl. ruled lines, film grain, blackout) | 384/384 |
 | BUS testing dataset (`bus_test_set`: Arabic, pastel, coloured, cartoon letters) | 277/296 (93.6%); whole picture cards 17/28 (was 4/28) |
-| Automated tests | 402, no known misses |
+| Automated tests | 419, no known misses |
 
 *Turned letters* (batch 16): tilted and sideways letters are read too. On `turned_set` (the test
 photos turned to 15-345°, made with `python make_turned_set.py`): 440 -> 811 of 1,390 right (825 after batch 17), with
@@ -132,6 +132,33 @@ surer answer wins. Upside down stays hardest, because turned around some letters
 - Tried and not kept: reading level ruled pages upside down too (it read upright lam as mim), and a
   retrained tilt model that also saw turned photos with their ruled lines (1,059 turned, but four
   upright photos lost; with guards that kept them, only 1,028).
+
+*Batch 21* (more turned letters, and a Turn button): 1,043 -> 1,066 of 1,390, every upright score unchanged.
+- Angle search (`read_photo`, `_search_angles` in `predict.py`): a one-letter photo without ruling that
+  is read less than 90% sure (`SEARCH_BELOW`) or refused is also read turned to `SEARCH_ANGLES`; the
+  surest reading is used when at least 99% sure (`SEARCH_SURE`) and surer by 0.15 (`SEARCH_BETTER`).
+  Looser settings (97% / 90% / 0.1) gained only 2 more photos, so the stricter ones were kept.
+- Ruling past a dark desk (`ruling_angle` in `common.py`): the dark area past the page edge gives the
+  strongest straight edges, at right angles to the ruling, so the 2 strongest directions are tried
+  (`TILT_TRIES`; 3 gave nothing more and found a "tilt" in more upright photos).
+- *Turn* on the photo (`turnPhoto` in `static/app.js`): a quarter turn clockwise, and read again if the
+  photo had been read. It sits at the photo's bottom left, as a box is usually dragged from the top left.
+- Picture cards (`_colour_shapes`, `_read_picture_card` in `predict.py`): 17 -> 22 of 28 whole cards, BUS
+  277 -> 282 of 296. A cartoon letter has no outline; the picture beside it does. So colour shapes are cut
+  along dark outline (`CARD_DARK`: a red te touching a red apple comes apart), shapes mostly along dark
+  outline are skipped (`CARD_OUTLINED`: the bear was read as he), and a clean letter (`CARD_CLEAN`) read
+  at least 97% sure wins over a reading that took in the picture: several letters (the carrot read as
+  letters), or one letter at least 2.5x its size (`CARD_SWALLOWED`; a pastel jim's bowl, 2.0x smaller
+  than the jim, would otherwise be read as nun).
+- Phone-style test photos (`make_phone_set.py`, `phone_set/`): the test photos with what a hand-held phone
+  adds (the camera at a slant, a small turn, lower resolution but at least 100 px, blur or shake, uneven
+  light and a shadow, noise, JPEG), mild and strong, plus the marked sheets and several-letter photos.
+  Results: mild 122/139, strong 89/139, marked 11/21, several 19/25. It is a stand-in: photos taken with
+  a real phone are the real test.
+  What it showed: most misses are the model reading a small, blurred letter unsurely (a lam in a row
+  at 50%, 91% in the sharp photo), not a step of the reading. A highlighter on a blurred sheet was not
+  found; loosening that check took cartoon pictures for highlights and the letters under it were still
+  misread, so it was not kept. The angle search was made stricter (99%) after it misread one phone photo.
 
 ---
 
@@ -204,7 +231,7 @@ reading order.
 | Tests whose name contains a word | `python -m pytest -k save` | |
 | Code scan (unused or undefined names) | `python -m pyflakes .` | seconds |
 
-Expected result: `402 passed`.
+Expected result: `419 passed`.
 
 ### Score the test sets
 

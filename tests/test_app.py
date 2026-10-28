@@ -232,3 +232,15 @@ def test_other_guesses_are_folded_and_the_session_can_be_cleared(client):
     box = re.search(r'<details id="altsBox" hidden>(.*?)</details>', html, re.S)
     assert box and "Other possible letters" in box[1] and 'id="alts"' in box[1]   # closed: no "open"
     assert 'id="clearSession"' in html and 'aria-label="Clear this session"' in html
+
+
+def test_photo_can_be_turned_a_quarter_turn():
+    js = open(os.path.join(ROOT, "static", "app.js"), encoding="utf-8").read()
+    assert "function turnPhoto" in js and 'className = "turn-photo"' in js
+    css = open(os.path.join(ROOT, "static", "style.css"), encoding="utf-8").read()
+    assert ".turn-photo {" in css
+    assert "<b>Turn</b>" in client_page()
+
+
+def client_page():
+    return app.test_client().get("/").data.decode("utf-8")

@@ -55,6 +55,19 @@ def turn_whole(img, angle):
     page: the paper is first extended past the photo (the ruled lines carry on sideways, plain paper above
     and below), then turned and cropped to where the photo went. Unlike turn_photo, no part of the letter
     is cut off, and the ruled lines still run across the whole photo."""
+    ext, (p, w, h) = extend_paper(img)
+    H, W = ext.shape[:2]
+    m = cv2.getRotationMatrix2D((W / 2, H / 2), angle, 1.0)
+    big = cv2.warpAffine(ext, m, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    corners = np.array([[p, p, 1], [p + w, p, 1], [p, p + h, 1], [p + w, p + h, 1]], np.float64) @ m.T
+    x0, y0 = np.floor(corners.min(0)).astype(int)
+    x1, y1 = np.ceil(corners.max(0)).astype(int)
+    return big[max(y0, 0):min(y1, H), max(x0, 0):min(x1, W)]
+
+
+def extend_paper(img):
+    """The photo's paper extended past it on every side by p (0.6 x its longer side): the ruled lines
+    carry on sideways, plain paper above and below. -> (extended image, (p, w, h) of the photo in it)"""
     if min(img.shape[:2]) > 40:
         img = img[2:-2, 2:-2]                     # some photos have a thin white rim; it must not be extended
     h, w = img.shape[:2]
@@ -66,14 +79,7 @@ def turn_whole(img, angle):
     paper = paper.astype(np.float32) if img.ndim == 3 else np.float32(paper[0])
     top = ext[:1] * fade[::-1] + paper * (1 - fade[::-1])
     bottom = ext[-1:] * fade + paper * (1 - fade)
-    ext = np.concatenate([top, ext, bottom]).clip(0, 255).astype(np.uint8)
-    H, W = ext.shape[:2]
-    m = cv2.getRotationMatrix2D((W / 2, H / 2), angle, 1.0)
-    big = cv2.warpAffine(ext, m, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-    corners = np.array([[p, p, 1], [p + w, p, 1], [p, p + h, 1], [p + w, p + h, 1]], np.float64) @ m.T
-    x0, y0 = np.floor(corners.min(0)).astype(int)
-    x1, y1 = np.ceil(corners.max(0)).astype(int)
-    return big[max(y0, 0):min(y1, H), max(x0, 0):min(x1, W)]
+    return np.concatenate([top, ext, bottom]).clip(0, 255).astype(np.uint8), (p, w, h)
 
 
 def main():
