@@ -160,6 +160,13 @@ surer answer wins. Upside down stays hardest, because turned around some letters
   found; loosening that check took cartoon pictures for highlights and the letters under it were still
   misread, so it was not kept. The angle search was made stricter (99%) after it misread one phone photo.
 
+*Batch 22* (turning by hand): the one Turn button became three small icons at the photo's bottom left: *Turn left*,
+*Turn right* (quarter turns) and *Straighten*, which opens a slider (-45 to +45 degrees) in place of
+the tip under the photo (*Reset*, *Done*). While the slider moves only the picture turns on screen;
+when it is let go the photo is drawn again from the original at that angle (`redraw` in
+`static/app.js`), the new corners in the photo's own paper colour (`paperColour`), and read again if
+it had been read. The reading on the server is not changed.
+
 ---
 
 ## 2. Commands

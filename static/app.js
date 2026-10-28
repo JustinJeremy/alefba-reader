@@ -92,16 +92,27 @@ function showEmpty() {
   $("drop").replaceChildren(EMPTY_HINT.cloneNode(true));
   $("drop").classList.remove("has-photo");
   $("selrow").hidden = true;
+  $("straightRow").hidden = true;
   $("go").disabled = true;
 }
 
 
 // choosing a photo
 
-function setFile(f) {
+// the photo as chosen, and how it has been turned on the page (quarter turns clockwise, and a small
+// straightening angle): every turn is drawn again from the original, so turning never blurs it
+let orig = null;               // { file, img, paper, quarter: 0..3, fine: degrees clockwise }
+
+function setFile(f, edited = false) {
   if (!f) return;
   stopCam();
   current = f;
+  if (!edited) {
+    orig = { file: f, img: null, paper: null, quarter: 0, fine: 0 };
+    $("straight").value = 0;
+    showStraight();
+    closeStraight();
+  }
   $("err").textContent = "";
   hideResults();
 
@@ -120,13 +131,22 @@ function setFile(f) {
   clear.className = "clear-photo";
   clear.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>New photo';
   clear.onclick = e => { e.stopPropagation(); newPhoto(); };
-  const turn = document.createElement("button");           // "Turn": a quarter turn clockwise
-  turn.type = "button";
-  turn.className = "turn-photo";
-  turn.title = "Turn the photo a quarter turn (for a sideways or upside-down letter)";
-  turn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>Turn';
-  turn.onclick = e => { e.stopPropagation(); turnPhoto(img); };
-  stage.append(img, box, clear, turn);
+  const tools = document.createElement("div");             // turn left, turn right, straighten
+  tools.className = "turns";
+  for (const [label, path, act] of [
+      ["Turn left", "M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5", () => turnPhoto(-1)],
+      ["Turn right", "M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5", () => turnPhoto(1)],
+      ["Straighten", "M3 19h18M5 19L18 6M14 19a9 9 0 0 0-3-6.7", openStraight]]) {
+    const t = document.createElement("button");
+    t.type = "button";
+    t.className = "turn-photo";
+    t.title = label === "Straighten" ? "Straighten a small tilt" : label + " (a quarter turn)";
+    t.setAttribute("aria-label", label);
+    t.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + path + '"/></svg>';
+    t.onclick = e => { e.stopPropagation(); act(); };
+    tools.append(t);
+  }
+  stage.append(img, box, clear, tools);
 
   $("drop").replaceChildren(stage);
   $("drop").classList.add("has-photo");
@@ -137,24 +157,105 @@ function setFile(f) {
   $("go").disabled = false;
 }
 
-// The photo turned a quarter turn clockwise, as a new photo; if it had been read, it is read again
+// Turn left / Turn right: a quarter turn (dir -1 or 1); if the photo had been read, it is read again
 // (the app straightens tilted ruled paper itself, but a sideways or upside-down letter on plain paper
 // can need a hand)
-function turnPhoto(img) {
-  if (busy || !img.naturalWidth) return;
+function turnPhoto(dir) {
+  if (busy || !orig) return;
+  orig.quarter = (orig.quarter + dir + 4) % 4;
+  redraw();
+}
+
+// Straighten: a slider that takes the place of the tip under the photo while it is open. While it
+// moves only the picture on screen turns; when it is let go the photo is drawn again at that angle
+// (and read again if it had been read)
+function openStraight() {
+  $("selrow").hidden = true;
+  $("straightRow").hidden = false;
+  $("straight").focus();
+}
+
+function closeStraight() {
+  $("straightRow").hidden = true;
+  $("selrow").hidden = !current;
+}
+
+function showStraight() {
+  const v = Number($("straight").value);
+  $("straightVal").textContent = (v > 0 ? "+" : "") + v + "°" + (Math.abs(v) === 45 ? " (most)" : "");
+  $("straightReset").hidden = v === 0;
+}
+
+// while the slider is held, the cursor stays a grabbing hand wherever the pointer goes (otherwise it
+// shows the photo's crosshair or a button's hand, which looks as if the slider stopped working)
+$("straight").addEventListener("pointerdown", () => document.documentElement.classList.add("sliding"));
+for (const ev of ["pointerup", "pointercancel"])
+  window.addEventListener(ev, () => document.documentElement.classList.remove("sliding"));
+
+$("straight").oninput = () => {
+  showStraight();
+  const img = $("drop").querySelector("#stage img");
+  if (img && orig) img.style.transform = `rotate(${Number($("straight").value) - orig.fine}deg)`;
+};
+$("straight").onchange = () => {
+  if (!orig || busy || Number($("straight").value) === orig.fine) return;
+  orig.fine = Number($("straight").value);
+  redraw();
+};
+$("straightReset").onclick = () => {
+  $("straight").value = 0;
+  showStraight();
+  $("straight").onchange();
+};
+$("straightDone").onclick = closeStraight;
+
+// the original photo drawn at quarter x 90 + fine degrees (clockwise) on a canvas big enough for all of
+// it; new corners get the photo's own paper colour (the colour along its edges), as if the paper went on
+async function redraw() {
   const wasRead = shown >= 0 && history[shown] && history[shown].file === current;
+  const open = !$("straightRow").hidden;
+  const angle = orig.quarter * 90 + orig.fine;
+  if (angle === 0) {
+    setFile(orig.file, true);
+  } else {
+    if (!orig.img) {
+      orig.img = new Image();
+      orig.img.src = URL.createObjectURL(orig.file);
+      await orig.img.decode();
+      orig.paper = paperColour(orig.img);
+    }
+    const w = orig.img.naturalWidth, h = orig.img.naturalHeight, r = angle * Math.PI / 180;
+    const c = document.createElement("canvas");
+    c.width = Math.round(Math.abs(w * Math.cos(r)) + Math.abs(h * Math.sin(r)));
+    c.height = Math.round(Math.abs(w * Math.sin(r)) + Math.abs(h * Math.cos(r)));
+    const g = c.getContext("2d");
+    g.fillStyle = orig.paper;
+    g.fillRect(0, 0, c.width, c.height);
+    g.translate(c.width / 2, c.height / 2);
+    g.rotate(r);
+    g.drawImage(orig.img, -w / 2, -h / 2);
+    const blob = await new Promise(ok => c.toBlob(ok, "image/jpeg", 0.95));
+    const name = (orig.file.name ? orig.file.name.replace(/\.[^.]*$/, "") : "photo") + "_turned.jpg";
+    setFile(new File([blob], name, { type: "image/jpeg" }), true);
+  }
+  if (open) openStraight();
+  if (wasRead) $("go").click();
+}
+
+// the colour along the photo's edges (the middle value of each channel): its paper
+function paperColour(img) {
   const c = document.createElement("canvas");
-  c.width = img.naturalHeight;
-  c.height = img.naturalWidth;
+  c.width = 64; c.height = 64;
   const g = c.getContext("2d");
-  g.translate(c.width, 0);
-  g.rotate(Math.PI / 2);
-  g.drawImage(img, 0, 0);
-  const name = (current && current.name ? current.name.replace(/\.[^.]*$/, "") : "photo") + "_turned.jpg";
-  c.toBlob(b => {
-    setFile(new File([b], name, { type: "image/jpeg" }));
-    if (wasRead) $("go").click();
-  }, "image/jpeg", 0.95);
+  g.drawImage(img, 0, 0, 64, 64);
+  const d = g.getImageData(0, 0, 64, 64).data, ch = [[], [], []];
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+    if (x > 1 && x < 62 && y > 1 && y < 62) continue;
+    const k = (y * 64 + x) * 4;
+    for (let i = 0; i < 3; i++) ch[i].push(d[k + i]);
+  }
+  const mid = a => a.sort((p, q) => p - q)[a.length >> 1];
+  return `rgb(${mid(ch[0])}, ${mid(ch[1])}, ${mid(ch[2])})`;
 }
 
 // Draw the photo as big as the panel allows (small photos and screenshots are enlarged), keeping its
@@ -334,6 +435,7 @@ async function openStream() {
   $("drop").replaceChildren(v);
   $("drop").classList.add("has-photo");
   $("selrow").hidden = true;
+  $("straightRow").hidden = true;
 
   // follow what the browser actually gave us (laptops have no rear camera)
   const fm = stream.getVideoTracks()[0].getSettings().facingMode;

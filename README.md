@@ -45,8 +45,9 @@ stage where the letter is shown large, next to its spelling and how sure the app
   or drop it anywhere on the page. *Enter* reads it; *✕ New photo* on the photo, or *✕ Clear* beside
   the answer, starts over. Small photos are drawn large so a box can be dragged on them.
 - Drag a box on the photo to read only that part.
-- *Turn* on the photo gives it a quarter turn (and reads it again if it was read): for a sideways or
-  upside-down letter the app is unsure of.
+- The buttons at the bottom left of the photo turn it a quarter turn *left* or *right*, or *straighten*
+  a small tilt with a slider (−45° to +45°; it shows in place of the tip while open). A photo that was
+  read is read again. Every turn is drawn from the original photo, so it never gets blurrier.
 - On a whole alphabet sheet with no mark, the app asks for one, or you can drag a box around the letter.
 - The answer shows the letter, its spelling (with a *Copy* button), how sure the app is, the other possible
   letters (folded until opened), and how the letter looks inside a word (at the start, in the middle, at the end).
