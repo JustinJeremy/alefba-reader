@@ -193,6 +193,8 @@ LEVEL_BELOW = 1.01  # tilted ruled paper is always also read straightened (a tur
 LEVEL_SURE = 0.9    # the straightened reading is used only when at least this sure,
 LEVEL_BETTER = 0.0  # and at least as sure as the reading as it is
 LEVEL_HOW = " (straightened along the ruled lines)"
+FLIP_UNDER = 60     # paper turned less than this from level (degrees) is more likely the right way up:
+FLIP_BETTER = 0.1   # read turned back upside down instead only when that is surer by this much
 
 
 PAD_BELOW = 0.9     # a reading less sure than this (or a refusal): also read the photo with a border added
@@ -325,8 +327,9 @@ def _read_level(img, topk=3, select=None):
         except ValueError:
             continue
         s = min(r[0][1] for r, _ in got)
-        if letters is None or s > sure:
-            letters, how, back, sure = got, h, bk, s
+        rank = s - (FLIP_BETTER if a != tilt and abs(tilt) < FLIP_UNDER else 0)
+        if letters is None or rank > best:
+            letters, how, back, sure, best = got, h, bk, s, rank
     if letters is None:
         if err:
             raise err

@@ -96,3 +96,12 @@ def test_turned_ruled_photo_is_read_turned_back_either_way(sheet, angle):
     img = turn_whole(load_image(os.path.join(ROOT, "real_photos", sheet)), angle)
     letters, how = predict.read_photo(img)
     assert letters[0][0][0][0] == int(os.path.basename(sheet)[:2]), how
+
+
+@pytest.mark.parametrize("sheet", ["Mark/03_te_sheet.jpg", "Mark/05_jim_sheet.jpg", "Mark/07_he_sheet.jpg"])
+def test_one_ruled_line_across_the_photo_is_enough(sheet):
+    # these show a single ruled line: running edge to edge it is ruling (a letter's stroke has paper round it)
+    from make_turned_set import turn_whole
+    img = turn_whole(load_image(os.path.join(ROOT, "real_photos", sheet)), 30)
+    assert abs(ruled_tilt(img) - 30) < 3
+    assert predict.read_photo(img)[0][0][0][0][0] == int(os.path.basename(sheet)[:2])
