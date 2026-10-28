@@ -376,7 +376,8 @@ h1, h2 { font-family: var(--heading); margin: 0; }
 #straightRow[hidden] { display: none; }
 #straightRow label { color: var(--side-ink); font-weight: 600; }
 #straightVal { margin-right: auto; font-variant-numeric: tabular-nums; }
-#straight { order: 9; flex: 1 1 100%; width: 100%; min-width: 0; margin: 4px 0 0; accent-color: var(--gold); }
+#straight { order: 9; flex: 1 1 100%; width: 100%; min-width: 0; margin: 4px 0 0; accent-color: var(--gold); cursor: grab; }
+html.sliding, html.sliding * { cursor: grabbing !important; }   /* while the slider is held */
 
 #selbox {
   position: absolute;

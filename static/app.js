@@ -182,9 +182,15 @@ function closeStraight() {
 
 function showStraight() {
   const v = Number($("straight").value);
-  $("straightVal").textContent = (v > 0 ? "+" : "") + v + "°";
+  $("straightVal").textContent = (v > 0 ? "+" : "") + v + "°" + (Math.abs(v) === 45 ? " (most)" : "");
   $("straightReset").hidden = v === 0;
 }
+
+// while the slider is held, the cursor stays a grabbing hand wherever the pointer goes (otherwise it
+// shows the photo's crosshair or a button's hand, which looks as if the slider stopped working)
+$("straight").addEventListener("pointerdown", () => document.documentElement.classList.add("sliding"));
+for (const ev of ["pointerup", "pointercancel"])
+  window.addEventListener(ev, () => document.documentElement.classList.remove("sliding"));
 
 $("straight").oninput = () => {
   showStraight();
